@@ -1,4 +1,30 @@
+'use client'
+
+import { useEffect, useState } from 'react'
+import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
+
 export default function Home() {
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
+  const router = useRouter()
+
+  useEffect(() => {
+    async function checkAuth() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        router.push('/dashboard')
+      } else {
+        setIsAuthenticated(false)
+      }
+    }
+
+    checkAuth()
+  }, [router])
+
+  if (isAuthenticated === null) {
+    return <div className="min-h-screen bg-slate-900" />
+  }
+
   return (
     <main className="flex min-h-screen flex-col items-center justify-center p-24 bg-gradient-to-br from-slate-900 to-slate-800">
       <div className="text-center">
