@@ -21,12 +21,12 @@ export interface Project {
   id: string
   company_id: string
   name: string
-  client_id: string
   status: 'orcamento' | 'orcamento_desaprovado' | 'producao' | 'edicao' | 'entregue' | 'pausado'
   value: number
   type?: string
   delivery_date?: string
   description?: string
+  progress: number
   data?: Record<string, any>
   created_at: string
   updated_at: string
@@ -40,6 +40,7 @@ export interface Client {
   monthly_value?: number
   phone?: string
   email?: string
+  whatsapp?: string
   created_at: string
   updated_at: string
 }
@@ -49,9 +50,9 @@ export interface Transaction {
   company_id: string
   type: 'entrada' | 'saida' | 'arec' | 'apag'
   value: number
-  description: string
+  description?: string
   category?: string
-  date?: string
+  transaction_date?: string
   project_id?: string
   client_id?: string
   created_at: string
@@ -62,8 +63,8 @@ export interface Event {
   id: string
   company_id: string
   title: string
-  date: string
-  type: 'capt' | 'entrega' | 'fixo' | 'manual'
+  event_date: string
+  event_type: 'capt' | 'entrega' | 'fixo' | 'manual'
   notes?: string
   created_at: string
   updated_at: string
