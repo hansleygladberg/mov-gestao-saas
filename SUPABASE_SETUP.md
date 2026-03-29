@@ -1,117 +1,113 @@
-# Configurar Supabase para Autenticação
+# ⚙️ Setup do Supabase
 
-## 1. Criar Conta Supabase
+## 1️⃣ Criar Project no Supabase
 
 1. Acesse [supabase.com](https://supabase.com)
-2. Clique em "Start your project"
-3. Sign up com seu email/GitHub
-4. Crie uma nova organização (ex: "MOV Produtora")
+2. Clique em **"New Project"**
+3. Preencha:
+   - **Project Name**: mov-gestao-saas
+   - **Database Password**: guarde em local seguro!
+   - **Region**: São Paulo (sa-east-1)
+   - **Pricing Plan**: Free
+4. Clique em **"Create new project"** e aguarde (~2 min)
 
-## 2. Criar Novo Projeto
+## 2️⃣ Obter Credenciais
 
-1. Clique em "New Project"
-2. Preenchaa informações:
-   - **Name**: mov-gestao
-   - **Database Password**: Guarde bem (você não consegue recuperar)
-   - **Region**: Escolha a mais próxima (ex: `sa-east-1` para São Paulo)
-3. Aguarde ~2 minutos para criação
+### URL e Anon Key
 
-## 3. Copiar Credenciais
+1. No dashboard, vá para **Settings** (ícone de engrenagem, canto inferior esquerdo)
+2. Clique em **"API"**
+3. Copie:
+   - **Project URL** → `NEXT_PUBLIC_SUPABASE_URL`
+   - **anon public** → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
-1. Vá em **Project Settings** > **API**
-2. Copie:
-   - **Project URL** (ex: `https://xxxx.supabase.co`)
-   - **anon public** (a chave pública)
-3. Cole no arquivo `.env.local`:
+### .env.local
+
+Crie o arquivo `.env.local` na raiz do projeto:
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_URL=https://xxxxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGc...
 ```
 
-## 4. Executar Migrations
+## 3️⃣ Executar as Migrations
 
-1. Vá em **SQL Editor** no Supabase
-2. Clique em "New query"
-3. Copie o conteúdo de `supabase/migrations/001_initial_schema.sql`
-4. Cole na query e clique "Run"
-5. Aguarde conclusão
+1. No dashboard do Supabase, vá para **SQL Editor**
+2. Clique em **"New Query"** ou **"New Snippet"**
+3. Copie TODO o conteúdo do arquivo: `supabase/migrations/001_initial_schema.sql`
+4. Cole no SQL Editor e execute (play button)
 
-## 5. ⚙️ Configurar Email Provider (Importante!)
+✅ Se aparecer "Success", as tabelas foram criadas!
 
-Por padrão, Supabase usa SMTP básico. Para confirmação de email funcionar:
+## 4️⃣ Ativar Autenticação por Email
 
-1. Vá em **Authentication** > **Providers**
-2. Clique em **Email**
-3. Se quiser usar seu próprio SMTP:
-   - Vá em **Settings** > **Email Templates**
-   - Configure ou use o padrão
+1. No dashboard, vá para **Authentication**
+2. Clique em **"Providers"**
+3. Verifique se "Email" está ativado (deve estar por padrão)
 
-## 6. 🔒 Configurar RLS Policies (Opcional, já está feito)
+## 5️⃣ Configurar Email (Opcional, mas Importante)
 
-1. Vá em **Authentication** > **Enable RLS**
-2. Clique em cada tabela e revise as policies criadas
+Para production, configure um serviço de email:
 
-## 7. Testar Localmente
+1. Em **Authentication** → **Email Templates**
+2. Você pode usar o serviço padrão do Supabase (50 emails/mês free)
+3. Ou configurar seu próprio SMTP
+
+## 6️⃣ Testar Localmente
 
 ```bash
-# 1. Instale dependências
-npm install
-
-# 2. Preencha .env.local com suas credenciais
-
-# 3. Rode o projeto
 npm run dev
-
-# 4. Visite http://localhost:3000
-# Clique em "Criar conta" e faça signup
-
-# 5. Verifique se a empresa e o usuário foram criados:
-# - Supabase > SQL Editor > SELECT * FROM companies;
-# - SELECT * FROM users;
 ```
 
-## 🐛 Troubleshooting
+Acesse: http://localhost:3000/signup
 
-### "Invalid API key" ou "Connection refused"
+Crie uma conta de teste!
 
-- Verifica se as variáveis de ambiente estão preenchidas
-- Confirma se copou URL e chave corretas
+## 7️⃣ RLS (Row Level Security)
 
-### Usuário criado mas não consegue entrar
+✅ Já está configurado na migration!
 
-- Supabase pode exigir confirmação de email
-- Vá em **Authentication** > **Users** e confirme manualmente
+Cada usuário só vê dados da sua company. Teste em **SQL Editor**:
 
-### Migrations não rodaram
+```sql
+SELECT * FROM companies;
+SELECT * FROM users;
+SELECT * FROM projects;
+```
 
-- SqlError (42P07): Uma tabela já existe
-- Limpe com `DROP TABLE IF EXISTS` antes de rerun
+Se retornar vazio, é normal - você não está autenticado. A RLS funciona!
 
-## 📧 Email (Importante para Signup/Password Reset)
+## 🔧 Troubleshooting
 
-Para enviar emails de confirmação:
+### ❌ "Cannot execute query - not authenticated"
 
-1. **Opção 1**: Usar email padrão do Supabase (básico)
-2. **Opção 2**: Usar SendGrid, Mailgun, etc
-   - Vá em **Authentication** > **Email** > **SMTP Settings**
-   - Configure suas credenciais
+Isso é esperado! Significa que as RLS policies estão funcionando.
 
-## ✅ Checklist
+Para testar via SQL Editor, desative RLS temporariamente em **Settings → Policies** (apenas para debug!).
 
-- [ ] Conta Supabase criada
-- [ ] Projeto criado
-- [ ] Credenciais copiadas em `.env.local`
-- [ ] Migrations executadas
-- [ ] Email configurado (opcional mas recomendado)
-- [ ] `npm run dev` funcionando
-- [ ] Signup > Usuário criado em `companies` e `users`
-- [ ] Login > Redireciona para dashboard
+### ❌ "Invalid UUID"
+
+A função `get_current_company_id()` precisa de um usuário autenticado no JWT.
+
+Isso é padrão - use apenas via aplicação (onde o JWT está disponível).
+
+### ❌ Erro ao fazer login
+
+1. Verifique se `.env.local` tem as credenciais corretas
+2. Confirme que o email de teste foi criado em **Auth Users**
+3. Veja o console do navegador (F12) para mais detalhes
+
+## 📚 Próximos Passos
+
+1. ✅ Migrations criadas
+2. ✅ Auth configurado
+3. 🎯 Criar protected pages (middleware)
+4. 🎯 Implementar CRUD de projetos
+5. 🎯 Criar dashboard com dados
 
 ---
 
-Próximas funcionalidades a integrar:
-- [ ] CRUD de Projetos
-- [ ] CRUD de Clientes
-- [ ] Financeiro
-- [ ] Calendário
+**Dúvidas?** Veja os docs:
+- [Supabase Docs](https://supabase.com/docs)
+- [Supabase Auth](https://supabase.com/docs/guides/auth/overview)
+- [RLS Policies](https://supabase.com/docs/guides/auth/row-level-security)

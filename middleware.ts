@@ -1,20 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerClient } from './lib/supabase'
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Rotas públicas
-  const publicRoutes = ['/', '/login', '/signup']
-  if (publicRoutes.includes(pathname)) {
+  // Rotas públicas e APIs públicas
+  const publicRoutes = [
+    '/',
+    '/login',
+    '/signup',
+    '/api/auth/signup',
+    '/api/auth/logout',
+    '/_next',
+    '/favicon.ico',
+  ]
+
+  if (publicRoutes.some(route => pathname.startsWith(route))) {
     return NextResponse.next()
   }
 
-  // Verificar autenticação para rotas protegidas
-  const supabase = createServerClient()
-  const { data: { session } } = await supabase.auth.getSession()
+  // Se não está em rota pública, precisa de autenticação
+  // Verifica se tem cookie de sessão
+  const hasSession = request.cookies.has('sb-rvgrabtlyjdyauuqugcw-auth-token')
 
-  if (!session) {
+  if (!hasSession) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 

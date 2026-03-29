@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -17,7 +16,7 @@ export default function SignupPage() {
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault()
     setError('')
-    
+
     if (password !== confirmPassword) {
       setError('As senhas não correspondem')
       return
@@ -31,49 +30,24 @@ export default function SignupPage() {
     setLoading(true)
 
     try {
-      // 1. Criar company
-      const { data: companyData, error: companyError } = await supabase
-        .from('companies')
-        .insert([{ name: companyName }])
-        .select()
-        .single()
-
-      if (companyError) {
-        setError(companyError.message)
-        return
-      }
-
-      // 2. Criar usuário no Auth
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
+      const response = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          password,
+          companyName,
+        }),
       })
 
-      if (authError) {
-        setError(authError.message)
+      const data = await response.json()
+
+      if (!response.ok) {
+        setError(data.error || 'Erro ao cadastrar')
         return
       }
 
-      if (authData.user) {
-        // 3. Criar user record
-        const { error: userError } = await supabase
-          .from('users')
-          .insert([
-            {
-              id: authData.user.id,
-              email,
-              company_id: companyData.id,
-              role: 'admin', // Primeiro usuário é admin
-            },
-          ])
-
-        if (userError) {
-          setError(userError.message)
-          return
-        }
-
-        router.push('/login?message=Cadastro realizado! Verifique seu email.')
-      }
+      router.push('/login?message=Cadastro realizado! Verifique seu email.')
     } catch (err) {
       setError('Erro ao cadastrar. Tente novamente.')
       console.error(err)
