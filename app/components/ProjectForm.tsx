@@ -46,7 +46,7 @@ export function ProjectForm({ project, onSubmit, onCancel }: ProjectFormProps) {
         type,
         status: status as any,
         value: Number(value) || 0,
-        delivery_date: deliveryDate || null,
+        delivery_date: deliveryDate || undefined,
         description,
         progress: Number(progress) || 0,
       })
@@ -105,7 +105,7 @@ export function ProjectForm({ project, onSubmit, onCancel }: ProjectFormProps) {
           </label>
           <select
             value={status}
-            onChange={(e) => setStatus(e.target.value)}
+            onChange={(e) => setStatus(e.target.value as any)}
             className="w-full px-3 py-2 border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           >
             {PROJECT_STATUSES.map((s) => (
