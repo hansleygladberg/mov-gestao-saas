@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
+import { ToastProvider } from '@/lib/toast'
 
 // ── SVG Icons ────────────────────────────────────────────────────────
 const IGrid     = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
@@ -135,6 +136,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
+    <ToastProvider>
     <div style={{ display: 'flex', minHeight: '100vh', background: '#0a0a0a', fontFamily: 'var(--font-dm-sans), DM Sans, sans-serif' }}>
 
       {/* ── Hamburger button (mobile only) ──────────────────────────── */}
@@ -244,5 +246,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {children}
       </main>
     </div>
+    </ToastProvider>
   )
 }

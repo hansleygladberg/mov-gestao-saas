@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useToast } from '@/lib/toast'
+import { EmptyState } from '@/components/EmptyState'
 
 function fv(v: number) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 }).format(v) }
 function fd(d: string) { if (!d) return '—'; const [y, m, day] = d.split('-'); return `${day}/${m}/${y}` }
@@ -35,6 +37,7 @@ const inp: React.CSSProperties = { width: '100%', padding: '9px 12px', backgroun
 const btn = (v: 'primary' | 'ghost' | 'danger' | 'green') => ({ padding: '8px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 500, cursor: 'pointer', border: v === 'ghost' ? '1px solid #2a2d35' : 'none', background: v === 'primary' ? '#e8c547' : v === 'danger' ? 'rgba(232,93,74,.12)' : v === 'green' ? '#5db87a' : 'transparent', color: v === 'primary' ? '#000' : v === 'danger' ? '#e85d4a' : v === 'green' ? '#000' : '#6b7280', display: 'inline-flex', alignItems: 'center', gap: '6px' } as React.CSSProperties)
 
 export default function FinancePage() {
+  const toast = useToast()
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
@@ -43,7 +46,6 @@ export default function FinancePage() {
   const [editing, setEditing] = useState<Transaction | null>(null)
   const [form, setForm] = useState<Partial<Transaction>>(BLANK())
   const [saving, setSaving] = useState(false)
-  const [toast, setToast] = useState('')
   const [categories, setCategories] = useState<string[]>([])
   const [showPayModal, setShowPayModal] = useState(false)
   const [payTx, setPayTx] = useState<Transaction | null>(null)
@@ -53,8 +55,6 @@ export default function FinancePage() {
   const now = new Date()
   const [selMonth, setSelMonth] = useState(now.getMonth())
   const [selYear, setSelYear] = useState(now.getFullYear())
-
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -99,21 +99,21 @@ export default function FinancePage() {
   }
 
   async function handleSave() {
-    if (!form.description?.trim()) { showToast('Informe a descrição'); return }
+    if (!form.description?.trim()) { toast.show('Informe a descrição', 'error'); return }
     setSaving(true)
     try {
       const url = editing ? `/api/transactions/${editing.id}` : '/api/transactions'
       const res = await fetch(url, { method: editing ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
       if (!res.ok) { const e = await res.json(); throw new Error(e.error) }
-      await load(); setShowModal(false); showToast(editing ? 'Atualizado!' : 'Criado!')
-    } catch (e: unknown) { showToast('Erro: ' + (e instanceof Error ? e.message : 'Erro')) }
+      await load(); setShowModal(false); toast.show(editing ? 'Atualizado!' : 'Criado!', 'success')
+    } catch (e: unknown) { toast.show('Erro: ' + (e instanceof Error ? e.message : 'Erro'), 'error') }
     finally { setSaving(false) }
   }
 
   async function handleDelete(id: string) {
     if (!confirm('Excluir esta transação?')) return
     await fetch(`/api/transactions/${id}`, { method: 'DELETE' })
-    await load(); showToast('Excluído')
+    await load(); toast.show('Excluído', 'success')
   }
 
   function openPayModal(t: Transaction) {
@@ -130,7 +130,7 @@ export default function FinancePage() {
       body: JSON.stringify({ ...payTx, type: newType, value: payAmount }),
     })
     await load()
-    showToast(payTx.type === 'arec' ? 'Marcado como recebido!' : 'Marcado como pago!')
+    toast.show(payTx.type === 'arec' ? 'Marcado como recebido!' : 'Marcado como pago!', 'success')
     setShowPayModal(false)
     setPayTx(null)
   }
@@ -160,7 +160,6 @@ export default function FinancePage() {
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", background: '#0d0f12', minHeight: '100vh', padding: '28px' }}>
-      {toast && <div style={{ position: 'fixed', top: 20, right: 20, background: '#111318', border: '1px solid #2a2d35', borderRadius: '8px', padding: '12px 20px', color: '#f0ece4', fontSize: '13px', zIndex: 9999 }}>{toast}</div>}
 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
@@ -218,6 +217,17 @@ export default function FinancePage() {
           </div>
         ))}
       </div>
+
+      {/* Empty state when no transactions in month */}
+      {!loading && filtered.length === 0 && (
+        <EmptyState
+          icon="$"
+          title={`Sem movimentações em ${MONTHS_FULL[selMonth]}`}
+          subtitle="Registre entradas e saídas para acompanhar seu financeiro."
+          action="+ Nova Transação"
+          onAction={() => { setEditing(null); setForm(BLANK()); setShowModal(true) }}
+        />
+      )}
 
       {/* Two-column box section */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>

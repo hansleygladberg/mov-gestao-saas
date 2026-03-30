@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useToast } from '@/lib/toast'
+import { EmptyState } from '@/components/EmptyState'
 
 function fv(v: number) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 }).format(v) }
 
@@ -50,13 +52,13 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 export default function ClientsPage() {
+  const toast = useToast()
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Client | null>(null)
   const [form, setForm] = useState<Partial<Client>>(BLANK())
   const [saving, setSaving] = useState(false)
-  const [toast, setToast] = useState('')
   const [search, setSearch] = useState('')
 
   // View modal state
@@ -64,7 +66,6 @@ export default function ClientsPage() {
   const [clientProjects, setClientProjects] = useState<Project[]>([])
   const [loadingProjects, setLoadingProjects] = useState(false)
 
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
   const load = useCallback(async () => { setLoading(true); const r = await fetch('/api/clients'); const d = await r.json(); setClients(Array.isArray(d) ? d : []); setLoading(false) }, [])
   useEffect(() => { load() }, [load])
 
@@ -92,20 +93,20 @@ export default function ClientsPage() {
   }
 
   async function handleSave() {
-    if (!form.name?.trim()) { showToast('Informe o nome'); return }
+    if (!form.name?.trim()) { toast.show('Informe o nome', 'error'); return }
     setSaving(true)
     try {
       const url = editing ? `/api/clients/${editing.id}` : '/api/clients'
       const res = await fetch(url, { method: editing ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
       if (!res.ok) { const e = await res.json(); throw new Error(e.error) }
-      await load(); setShowModal(false); showToast(editing ? 'Cliente atualizado!' : 'Cliente criado!')
-    } catch (e: unknown) { showToast('Erro: ' + (e instanceof Error ? e.message : 'Erro')) }
+      await load(); setShowModal(false); toast.show(editing ? 'Cliente atualizado!' : 'Cliente criado!', 'success')
+    } catch (e: unknown) { toast.show('Erro: ' + (e instanceof Error ? e.message : 'Erro'), 'error') }
     finally { setSaving(false) }
   }
 
   async function handleDelete(id: string) {
     if (!confirm('Excluir este cliente?')) return
-    await fetch(`/api/clients/${id}`, { method: 'DELETE' }); await load(); showToast('Cliente excluído')
+    await fetch(`/api/clients/${id}`, { method: 'DELETE' }); await load(); toast.show('Cliente excluído', 'success')
   }
 
   const filtered = clients.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || (c.email || '').toLowerCase().includes(search.toLowerCase()))
@@ -121,8 +122,6 @@ export default function ClientsPage() {
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", background: '#0d0f12', minHeight: '100vh', padding: '28px' }}>
-      {/* Toast */}
-      {toast && <div style={{ position: 'fixed', top: 20, right: 20, background: '#111', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '12px 20px', color: '#f0ece4', fontSize: '13px', zIndex: 9999 }}>{toast}</div>}
 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
@@ -140,10 +139,13 @@ export default function ClientsPage() {
 
       {/* Cards grid */}
       {filtered.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px 20px', color: '#555' }}>
-          <div style={{ fontSize: '36px', marginBottom: '12px' }}>👥</div>
-          <div style={{ fontSize: '15px', color: '#888', marginBottom: '6px' }}>Nenhum cliente cadastrado</div>
-        </div>
+        <EmptyState
+          icon="👤"
+          title={search ? 'Nenhum cliente encontrado' : 'Nenhum cliente cadastrado'}
+          subtitle={search ? 'Tente outro termo de busca.' : 'Cadastre seus clientes para vincular projetos e orçamentos.'}
+          action={search ? undefined : '+ Novo Cliente'}
+          onAction={search ? undefined : openCreate}
+        />
       ) : (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
           {filtered.map(c => {

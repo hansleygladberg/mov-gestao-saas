@@ -137,3 +137,10 @@ select option {
   .btn-group-mobile { flex-wrap: wrap !important; }
   .btn-group-mobile > * { flex: 1 !important; justify-content: center; }
 }
+
+/* ── Toast animation ─────────────────────────────────────────────── */
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(40px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.toast-slide { animation: toastIn .2s ease; }

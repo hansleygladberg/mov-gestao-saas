@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useToast } from '@/lib/toast'
+import { EmptyState } from '@/components/EmptyState'
 
 function fv(v: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 }).format(v)
@@ -72,6 +74,7 @@ const btn = (v: 'primary' | 'ghost' | 'danger' | 'green') => ({
 } as React.CSSProperties)
 
 export default function ProjectsPage() {
+  const toast = useToast()
   const [projects, setProjects] = useState<Project[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [freelancers, setFreelancers] = useState<Freelancer[]>([])
@@ -83,14 +86,11 @@ export default function ProjectsPage() {
   const [editing, setEditing] = useState<Project | null>(null)
   const [form, setForm] = useState<Partial<Project> & { data: ProjectData }>(BLANK_PROJ())
   const [saving, setSaving] = useState(false)
-  const [toast, setToast] = useState('')
   const [viewProject, setViewProject] = useState<Project | null>(null)
   const [costCategories, setCostCategories] = useState<string[]>(['Freela', 'Transporte', 'Estacionamento', 'Alimentação', 'Equipamento', 'Locação', 'Outro'])
   const [showAddClient, setShowAddClient] = useState(false)
   const [newClientName, setNewClientName] = useState('')
   const [newClientSaving, setNewClientSaving] = useState(false)
-
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -138,7 +138,7 @@ export default function ProjectsPage() {
   }
 
   async function handleSave() {
-    if (!form.name?.trim()) { showToast('Informe o nome do projeto'); return }
+    if (!form.name?.trim()) { toast.show('Informe o nome do projeto', 'error'); return }
     setSaving(true)
     try {
       const url = editing ? `/api/projects/${editing.id}` : '/api/projects'
@@ -147,9 +147,9 @@ export default function ProjectsPage() {
       if (!res.ok) { const e = await res.json(); throw new Error(e.error) }
       await load()
       setShowModal(false)
-      showToast(editing ? 'Projeto atualizado!' : 'Projeto criado!')
+      toast.show(editing ? 'Projeto atualizado!' : 'Projeto criado!', 'success')
     } catch (e: unknown) {
-      showToast('Erro: ' + (e instanceof Error ? e.message : 'Erro'))
+      toast.show('Erro: ' + (e instanceof Error ? e.message : 'Erro'), 'error')
     } finally {
       setSaving(false)
     }
@@ -159,7 +159,7 @@ export default function ProjectsPage() {
     if (!confirm('Excluir este projeto?')) return
     await fetch(`/api/projects/${id}`, { method: 'DELETE' })
     await load()
-    showToast('Projeto excluído')
+    toast.show('Projeto excluído', 'success')
   }
 
   async function handleStatusChange(id: string, newStatus: string) {
@@ -206,7 +206,7 @@ export default function ProjectsPage() {
       await Promise.all(txs.map(tx => fetch('/api/transactions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tx) })))
     }
     await load()
-    showToast('Projeto aprovado! Custos → A Pagar · Recebimentos → A Receber.')
+    toast.show('Projeto aprovado! Custos → A Pagar · Recebimentos → A Receber.', 'success')
     setMainTab('projetos')
   }
 
@@ -221,8 +221,8 @@ export default function ProjectsPage() {
       upd('client_id', client.id)
       setShowAddClient(false)
       setNewClientName('')
-      showToast('Cliente criado!')
-    } catch { showToast('Erro ao criar cliente') }
+      toast.show('Cliente criado!', 'success')
+    } catch { toast.show('Erro ao criar cliente', 'error') }
     finally { setNewClientSaving(false) }
   }
 
@@ -252,8 +252,6 @@ export default function ProjectsPage() {
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", background: '#0d0f12', minHeight: '100vh', padding: '28px' }}>
-      {/* Toast */}
-      {toast && <div style={{ position: 'fixed', top: 20, right: 20, background: '#111', border: '1px solid #2a2a2a', borderRadius: '8px', padding: '12px 20px', color: '#f0ece4', fontSize: '13px', zIndex: 9999 }}>{toast}</div>}
 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
@@ -307,7 +305,7 @@ export default function ProjectsPage() {
                     <button onClick={e => { e.stopPropagation(); openEdit(p) }} style={{ ...btn('ghost'), flex: 1, justifyContent: 'center', padding: '6px 10px', fontSize: '12px' }}>✏️ Editar</button>
                     <button onClick={e => { e.stopPropagation(); handleApprove(p.id) }} style={{ ...btn('green'), flex: 1, justifyContent: 'center', padding: '6px 10px', fontSize: '12px' }}>✅ Aprovar</button>
                     {p.quote_token && (
-                      <button onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(`${window.location.origin}/orcamento/${p.quote_token}`); showToast('Link copiado!') }}
+                      <button onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(`${window.location.origin}/orcamento/${p.quote_token}`); toast.show('Link copiado!', 'info') }}
                         style={{ ...btn('ghost'), padding: '6px 10px', fontSize: '12px' }} title="Copiar link de aprovação">🔗</button>
                     )}
                     {p.quote_token && (
@@ -345,11 +343,21 @@ export default function ProjectsPage() {
           </div>
 
           {filteredProjetos.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '60px 20px', color: '#555' }}>
-              <div style={{ fontSize: '36px', marginBottom: '12px' }}>🎬</div>
-              <div style={{ fontSize: '15px', color: '#888', marginBottom: '6px' }}>Nenhum projeto aqui</div>
-              <div style={{ fontSize: '13px' }}>Aprove um orçamento para iniciar um projeto</div>
-            </div>
+            !loading && projects.filter(p => !['orcamento', 'orcamento_desaprovado', 'entregue'].includes(p.status)).length === 0 && subTab === 'todos' ? (
+              <EmptyState
+                icon="🎬"
+                title="Nenhum projeto ainda"
+                subtitle="Adicione seu primeiro projeto para começar."
+                action="+ Novo Projeto"
+                onAction={() => { setMainTab('projetos'); openCreate() }}
+              />
+            ) : (
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: '#555' }}>
+                <div style={{ fontSize: '36px', marginBottom: '12px' }}>🎬</div>
+                <div style={{ fontSize: '15px', color: '#888', marginBottom: '6px' }}>Nenhum projeto aqui</div>
+                <div style={{ fontSize: '13px' }}>Aprove um orçamento para iniciar um projeto</div>
+              </div>
+            )
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '12px' }}>
               {filteredProjetos.map(p => {
@@ -856,7 +864,7 @@ export default function ProjectsPage() {
                     <button onClick={() => window.open(`/orcamento/${p.quote_token}`, '_blank')} style={{ ...btn('ghost'), padding: '8px 14px' }}>📄</button>
                   )}
                   {p.quote_token && (
-                    <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/orcamento/${p.quote_token}`); showToast('Link copiado!') }} style={{ ...btn('ghost'), padding: '8px 14px' }}>🔗</button>
+                    <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/orcamento/${p.quote_token}`); toast.show('Link copiado!', 'info') }} style={{ ...btn('ghost'), padding: '8px 14px' }}>🔗</button>
                   )}
                   {p.status === 'orcamento' && (
                     <button onClick={() => { handleApprove(p.id); setViewProject(null) }} style={{ ...btn('green'), padding: '8px 16px' }}>✅ Aprovar</button>

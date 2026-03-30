@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useToast } from '@/lib/toast'
+import { EmptyState } from '@/components/EmptyState'
 
 function fv(v: number) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 }).format(v) }
 function fd(d: string) { if (!d) return '—'; const [y, m, day] = d.split('-'); return `${day}/${m}/${y}` }
@@ -16,17 +18,15 @@ const inp: React.CSSProperties = { width: '100%', padding: '9px 12px', backgroun
 const btnS = (v: 'primary' | 'ghost' | 'danger') => ({ padding: '8px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 500, cursor: 'pointer', border: v === 'ghost' ? '1px solid #2a2d35' : 'none', background: v === 'primary' ? '#e8c547' : v === 'danger' ? 'rgba(232,93,74,.12)' : 'transparent', color: v === 'primary' ? '#000' : v === 'danger' ? '#e85d4a' : '#6b7280', display: 'inline-flex', alignItems: 'center', gap: '6px' } as React.CSSProperties)
 
 export default function QuotesPage() {
+  const toast = useToast()
   const [projects, setProjects] = useState<Project[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
-  const [toast, setToast] = useState('')
 
   // New client mini-modal
   const [showClientModal, setShowClientModal] = useState(false)
   const [clientForm, setClientForm] = useState({ name: '', email: '', whatsapp: '' })
   const [savingClient, setSavingClient] = useState(false)
-
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3500) }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -43,7 +43,7 @@ export default function QuotesPage() {
 
   function copyLink(token: string) {
     const url = `${window.location.origin}/orcamento/${token}`
-    navigator.clipboard.writeText(url).then(() => showToast('🔗 Link copiado!')).catch(() => showToast(url))
+    navigator.clipboard.writeText(url).then(() => toast.show('Link copiado!', 'info')).catch(() => toast.show(url, 'info'))
   }
 
   async function handleDelete(id: string) {
@@ -53,7 +53,7 @@ export default function QuotesPage() {
   }
 
   async function saveNewClient() {
-    if (!clientForm.name.trim()) { showToast('Informe o nome'); return }
+    if (!clientForm.name.trim()) { toast.show('Informe o nome', 'error'); return }
     setSavingClient(true)
     try {
       const r = await fetch('/api/clients', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(clientForm) })
@@ -62,8 +62,8 @@ export default function QuotesPage() {
       setClients(prev => [...prev, newClient])
       setShowClientModal(false)
       setClientForm({ name: '', email: '', whatsapp: '' })
-      showToast('✅ Cliente criado!')
-    } catch (e: unknown) { showToast('Erro: ' + (e instanceof Error ? e.message : 'Erro')) }
+      toast.show('Cliente criado!', 'success')
+    } catch (e: unknown) { toast.show('Erro: ' + (e instanceof Error ? e.message : 'Erro'), 'error') }
     finally { setSavingClient(false) }
   }
 
@@ -75,7 +75,6 @@ export default function QuotesPage() {
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", background: '#0d0f12', minHeight: '100vh', padding: '28px' }}>
-      {toast && <div style={{ position: 'fixed', top: 20, right: 20, background: '#111318', border: '1px solid #2a2d35', borderRadius: '8px', padding: '12px 20px', color: '#f0ece4', fontSize: '13px', zIndex: 9999 }}>{toast}</div>}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px' }}>
         <div>
@@ -100,12 +99,13 @@ export default function QuotesPage() {
       )}
 
       {projects.length === 0 ? (
-        <div style={{ background: '#111318', border: '1px solid #1f2229', borderRadius: '10px', padding: '60px', textAlign: 'center' }}>
-          <div style={{ fontSize: '36px', marginBottom: '12px' }}>📄</div>
-          <div style={{ fontSize: '15px', color: '#6b7280', marginBottom: '6px' }}>Nenhum orçamento em aberto</div>
-          <div style={{ fontSize: '13px', color: '#4b5563', marginBottom: '20px' }}>Crie um projeto com status "Orçamento" para que ele apareça aqui</div>
-          <a href="/dashboard/projects" style={{ ...btnS('primary'), textDecoration: 'none' }}>+ Criar orçamento</a>
-        </div>
+        <EmptyState
+          icon="📄"
+          title="Nenhum orçamento em aberto"
+          subtitle='Crie um projeto com status "Orçamento" para que ele apareça aqui.'
+          action="+ Criar orçamento"
+          onAction={() => { window.location.href = '/dashboard/projects' }}
+        />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           {pending.length > 0 && (

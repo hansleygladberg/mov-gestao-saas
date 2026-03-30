@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { useToast } from '@/lib/toast'
 
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 const DAYS_SHORT = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
@@ -42,20 +43,18 @@ function fd(d: string) { if (!d) return '—'; const [y, m, day] = d.split('-');
 function ft(t?: string) { if (!t) return ''; return t.slice(0, 5) }
 
 export default function EventsPage() {
+  const toast = useToast()
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editing, setEditing] = useState<Event | null>(null)
   const [form, setForm] = useState<Partial<Event>>(BLANK())
   const [saving, setSaving] = useState(false)
-  const [toast, setToast] = useState('')
   const [view, setView] = useState<'calendar' | 'list'>('calendar')
 
   const now = new Date()
   const [calYear, setCalYear] = useState(now.getFullYear())
   const [calMonth, setCalMonth] = useState(now.getMonth())
-
-  const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(''), 3000) }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -80,8 +79,8 @@ export default function EventsPage() {
   }
 
   async function handleSave() {
-    if (!form.title?.trim()) { showToast('Informe o título'); return }
-    if (!form.event_date) { showToast('Informe a data'); return }
+    if (!form.title?.trim()) { toast.show('Informe o título', 'error'); return }
+    if (!form.event_date) { toast.show('Informe a data', 'error'); return }
     setSaving(true)
     try {
       const payload = { ...form, event_time: form.event_time || null }
@@ -89,15 +88,15 @@ export default function EventsPage() {
       const res = await fetch(url, { method: editing ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       if (!res.ok) { const e = await res.json(); throw new Error(e.error) }
       await load(); setShowModal(false)
-      showToast(editing ? 'Evento atualizado!' : 'Evento criado!')
-    } catch (e: unknown) { showToast('Erro: ' + (e instanceof Error ? e.message : 'Erro')) }
+      toast.show(editing ? 'Evento atualizado!' : 'Evento criado!', 'success')
+    } catch (e: unknown) { toast.show('Erro: ' + (e instanceof Error ? e.message : 'Erro'), 'error') }
     finally { setSaving(false) }
   }
 
   async function handleDelete(id: string) {
     if (!confirm('Excluir este evento?')) return
     await fetch(`/api/events/${id}`, { method: 'DELETE' })
-    await load(); showToast('Evento excluído')
+    await load(); toast.show('Evento excluído', 'success')
     setShowModal(false)
   }
 
@@ -135,7 +134,6 @@ export default function EventsPage() {
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif", background: '#0d0f12', minHeight: '100vh', padding: '28px' }}>
-      {toast && <div style={{ position: 'fixed', top: 20, right: 20, background: '#111318', border: '1px solid #2a2d35', borderRadius: '8px', padding: '12px 20px', color: '#f0ece4', fontSize: '13px', zIndex: 9999 }}>{toast}</div>}
 
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
@@ -189,6 +187,19 @@ export default function EventsPage() {
                       onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                     >
                       <div style={{ width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: isToday ? 700 : 400, background: isToday ? '#e8c547' : 'transparent', color: isToday ? '#000' : '#6b7280', marginBottom: '4px' }}>{day}</div>
+                      {dayEvents.length > 0 && (() => {
+                        const uniqueTypes = [...new Set(dayEvents.map(e => e.event_type))].slice(0, 3)
+                        const hasMore = [...new Set(dayEvents.map(e => e.event_type))].length > 3
+                        const tooltip = dayEvents.map(e => `${e.event_time ? ft(e.event_time) + ' ' : ''}${e.title}`).join('\n')
+                        return (
+                          <div title={tooltip} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, marginBottom: 4 }}>
+                            {uniqueTypes.map(tp => (
+                              <div key={tp} style={{ width: 5, height: 5, borderRadius: '50%', background: TYPE_COLOR[tp], flexShrink: 0 }} />
+                            ))}
+                            {hasMore && <span style={{ fontSize: 9, color: '#555', lineHeight: 1 }}>+</span>}
+                          </div>
+                        )
+                      })()}
                       {dayEvents.slice(0, 3).map(ev => (
                         <div key={ev.id} onClick={e => { e.stopPropagation(); openEdit(ev) }}
                           title={ev.title}
@@ -201,6 +212,11 @@ export default function EventsPage() {
                   )
                 })}
               </div>
+            {monthEvents.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '24px 0 0', color: '#555', fontSize: 12 }}>
+                Nenhum evento em {MONTHS[calMonth]} — clique em um dia para adicionar
+              </div>
+            )}
             </div>
           ) : (
             <div>
