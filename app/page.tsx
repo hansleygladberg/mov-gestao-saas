@@ -11,11 +11,15 @@ export default function Home() {
 
   useEffect(() => {
     async function checkAuth() {
-      const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        router.push('/dashboard')
-      } else {
+      try {
+        const supabase = createClient()
+        const { data: { user } } = await supabase.auth.getUser()
+        if (user) {
+          router.push('/dashboard')
+        } else {
+          setChecking(false)
+        }
+      } catch {
         setChecking(false)
       }
     }
@@ -24,7 +28,9 @@ export default function Home() {
 
   if (checking) {
     return (
-      <div style={{ minHeight: '100vh', background: '#0a0a0a' }} />
+      <div style={{ minHeight: '100vh', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ color: '#555', fontSize: '13px', fontFamily: 'DM Sans, sans-serif' }}>Carregando…</div>
+      </div>
     )
   }
 
