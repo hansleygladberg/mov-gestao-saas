@@ -45,6 +45,10 @@ export default function FinancePage() {
   const [saving, setSaving] = useState(false)
   const [toast, setToast] = useState('')
   const [categories, setCategories] = useState<string[]>([])
+  const [showPayModal, setShowPayModal] = useState(false)
+  const [payTx, setPayTx] = useState<Transaction | null>(null)
+  const [payAmount, setPayAmount] = useState<number>(0)
+  const [showHistorico, setShowHistorico] = useState(false)
 
   const now = new Date()
   const [selMonth, setSelMonth] = useState(now.getMonth())
@@ -112,14 +116,45 @@ export default function FinancePage() {
     await load(); showToast('Excluído')
   }
 
-  async function handleConfirm(t: Transaction) {
-    const newType = t.type === 'arec' ? 'entrada' : 'saida'
-    await fetch(`/api/transactions/${t.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...t, type: newType }) })
+  function openPayModal(t: Transaction) {
+    setPayTx(t)
+    setPayAmount(t.value)
+    setShowPayModal(true)
+  }
+
+  async function handleConfirmPay() {
+    if (!payTx) return
+    const newType = payTx.type === 'arec' ? 'entrada' : 'saida'
+    await fetch(`/api/transactions/${payTx.id}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...payTx, type: newType, value: payAmount }),
+    })
     await load()
-    showToast(t.type === 'arec' ? 'Marcado como recebido!' : 'Marcado como pago!')
+    showToast(payTx.type === 'arec' ? 'Marcado como recebido!' : 'Marcado como pago!')
+    setShowPayModal(false)
+    setPayTx(null)
   }
 
   const years = [selYear - 1, selYear, selYear + 1]
+
+  // Two-column data
+  const arecItems = filtered.filter(t => t.type === 'arec')
+  const entradaItems = filtered.filter(t => t.type === 'entrada')
+  const apagItems = filtered.filter(t => t.type === 'apag')
+  const saidaItems = filtered.filter(t => t.type === 'saida')
+
+  // Gastos por Categoria
+  const gastoTxs = [...saidaItems, ...apagItems]
+  const gastosPorCat: { cat: string; total: number }[] = []
+  gastoTxs.forEach(t => {
+    const cat = t.category?.trim() || 'Sem categoria'
+    const existing = gastosPorCat.find(g => g.cat === cat)
+    if (existing) existing.total += Number(t.value)
+    else gastosPorCat.push({ cat, total: Number(t.value) })
+  })
+  gastosPorCat.sort((a, b) => b.total - a.total)
+  const topCats = gastosPorCat.slice(0, 10)
+  const maxCatTotal = topCats.length > 0 ? topCats[0].total : 1
 
   if (loading) return <div style={{ color: '#555', padding: '40px', textAlign: 'center', background: '#0d0f12', minHeight: '100vh' }}>Carregando...</div>
 
@@ -184,54 +219,239 @@ export default function FinancePage() {
         ))}
       </div>
 
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' as const, marginBottom: '16px' }}>
-        {[
-          { key: 'todos', label: `Todos (${filtered.length})` },
-          { key: 'entrada', label: `Entradas (${filtered.filter(t => t.type === 'entrada').length})` },
-          { key: 'saida', label: `Despesas (${filtered.filter(t => t.type === 'saida').length})` },
-          { key: 'arec', label: `A Receber (${filtered.filter(t => t.type === 'arec').length})` },
-          { key: 'apag', label: `A Pagar (${filtered.filter(t => t.type === 'apag').length})` },
-        ].map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} style={{ padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: 500, cursor: 'pointer', border: 'none', background: tab === t.key ? 'rgba(232,197,71,.15)' : '#1a1d24', color: tab === t.key ? '#e8c547' : '#4b5563', transition: 'all .12s' }}>
-            {t.label}
-          </button>
-        ))}
+      {/* Two-column box section */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+
+        {/* LEFT BOX — Contas a Receber */}
+        <div style={{ background: '#111318', border: '1px solid #1f2229', borderRadius: '12px', overflow: 'hidden' }}>
+          {/* Box header */}
+          <div style={{ padding: '14px 16px', borderBottom: '1px solid #1f2229', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '14px', color: '#5b9bd5' }}>📥 Contas a Receber</span>
+            <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '14px', color: '#5b9bd5' }}>{fv(aReceber)}</span>
+          </div>
+
+          {/* arec items */}
+          <div style={{ padding: '8px 0' }}>
+            {arecItems.length === 0 ? (
+              <div style={{ padding: '16px', fontSize: '12px', color: '#4b5563', textAlign: 'center' }}>Nenhuma conta a receber</div>
+            ) : (
+              arecItems.map(t => (
+                <div key={t.id} style={{ padding: '10px 16px', borderBottom: '1px solid #1a1d24' }}>
+                  <div style={{ fontSize: '13px', color: '#f0ece4', fontWeight: 500, marginBottom: '4px' }}>{t.description || '—'}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontSize: '11px', color: '#4b5563' }}>
+                      {t.category || 'Sem categoria'}{t.transaction_date ? ` · ${fd(t.transaction_date)}` : ''}
+                    </div>
+                    <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '13px', color: '#5b9bd5' }}>+{fv(t.value)}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
+                    <button onClick={() => openPayModal(t)} style={{ ...btn('green'), padding: '4px 10px', fontSize: '11px' }}>✓ Recebido</button>
+                    <button onClick={() => openEdit(t)} style={{ ...btn('ghost'), padding: '4px 10px', fontSize: '11px' }}>✏️</button>
+                    <button onClick={() => handleDelete(t.id)} style={{ ...btn('danger'), padding: '4px 10px', fontSize: '11px' }}>🗑</button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Divider */}
+          <div style={{ padding: '8px 16px', borderTop: '1px solid #1f2229', borderBottom: '1px solid #1a1d24' }}>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px' }}>✓ Entradas recebidas</span>
+          </div>
+
+          {/* entrada items — compact */}
+          <div style={{ padding: '4px 0' }}>
+            {entradaItems.length === 0 ? (
+              <div style={{ padding: '10px 16px', fontSize: '12px', color: '#4b5563' }}>Nenhuma entrada</div>
+            ) : (
+              entradaItems.map(t => (
+                <div key={t.id} style={{ padding: '7px 16px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #1a1d24' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '12px', color: '#c0bdb5', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.description || '—'}</div>
+                    <div style={{ fontSize: '11px', color: '#4b5563' }}>{t.category || 'Sem categoria'}{t.transaction_date ? ` · ${fd(t.transaction_date)}` : ''}</div>
+                  </div>
+                  <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '12px', color: '#5db87a', flexShrink: 0 }}>+{fv(t.value)}</span>
+                  <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                    <button onClick={() => openEdit(t)} style={{ ...btn('ghost'), padding: '3px 8px', fontSize: '11px' }}>✏️</button>
+                    <button onClick={() => handleDelete(t.id)} style={{ ...btn('danger'), padding: '3px 8px', fontSize: '11px' }}>🗑</button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Footer */}
+          <div style={{ padding: '10px 16px', borderTop: '1px solid #1f2229', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '11px', color: '#4b5563' }}>Total entradas</span>
+            <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '13px', color: '#5db87a' }}>{fv(recebido)}</span>
+          </div>
+        </div>
+
+        {/* RIGHT BOX — Contas a Pagar */}
+        <div style={{ background: '#111318', border: '1px solid #1f2229', borderRadius: '12px', overflow: 'hidden' }}>
+          {/* Box header */}
+          <div style={{ padding: '14px 16px', borderBottom: '1px solid #1f2229', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '14px', color: '#e8924a' }}>📤 Contas a Pagar</span>
+            <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '14px', color: '#e8924a' }}>{fv(aPagar)}</span>
+          </div>
+
+          {/* apag items */}
+          <div style={{ padding: '8px 0' }}>
+            {apagItems.length === 0 ? (
+              <div style={{ padding: '16px', fontSize: '12px', color: '#4b5563', textAlign: 'center' }}>Nenhuma conta a pagar</div>
+            ) : (
+              apagItems.map(t => (
+                <div key={t.id} style={{ padding: '10px 16px', borderBottom: '1px solid #1a1d24' }}>
+                  <div style={{ fontSize: '13px', color: '#f0ece4', fontWeight: 500, marginBottom: '4px' }}>{t.description || '—'}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontSize: '11px', color: '#4b5563' }}>
+                      {t.category || 'Sem categoria'}{t.transaction_date ? ` · ${fd(t.transaction_date)}` : ''}
+                    </div>
+                    <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '13px', color: '#e8924a' }}>-{fv(t.value)}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
+                    <button onClick={() => openPayModal(t)} style={{ ...btn('green'), padding: '4px 10px', fontSize: '11px' }}>✓ Pago</button>
+                    <button onClick={() => openEdit(t)} style={{ ...btn('ghost'), padding: '4px 10px', fontSize: '11px' }}>✏️</button>
+                    <button onClick={() => handleDelete(t.id)} style={{ ...btn('danger'), padding: '4px 10px', fontSize: '11px' }}>🗑</button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Divider */}
+          <div style={{ padding: '8px 16px', borderTop: '1px solid #1f2229', borderBottom: '1px solid #1a1d24' }}>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px' }}>✓ Despesas pagas</span>
+          </div>
+
+          {/* saida items — compact */}
+          <div style={{ padding: '4px 0' }}>
+            {saidaItems.length === 0 ? (
+              <div style={{ padding: '10px 16px', fontSize: '12px', color: '#4b5563' }}>Nenhuma despesa</div>
+            ) : (
+              saidaItems.map(t => (
+                <div key={t.id} style={{ padding: '7px 16px', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #1a1d24' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '12px', color: '#c0bdb5', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.description || '—'}</div>
+                    <div style={{ fontSize: '11px', color: '#4b5563' }}>{t.category || 'Sem categoria'}{t.transaction_date ? ` · ${fd(t.transaction_date)}` : ''}</div>
+                  </div>
+                  <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '12px', color: '#e85d4a', flexShrink: 0 }}>-{fv(t.value)}</span>
+                  <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                    <button onClick={() => openEdit(t)} style={{ ...btn('ghost'), padding: '3px 8px', fontSize: '11px' }}>✏️</button>
+                    <button onClick={() => handleDelete(t.id)} style={{ ...btn('danger'), padding: '3px 8px', fontSize: '11px' }}>🗑</button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Footer */}
+          <div style={{ padding: '10px 16px', borderTop: '1px solid #1f2229', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '11px', color: '#4b5563' }}>Total despesas</span>
+            <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '13px', color: '#e85d4a' }}>{fv(despesas)}</span>
+          </div>
+        </div>
       </div>
 
-      {/* Transaction list */}
-      {byTab.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '60px 20px', color: '#4b5563' }}>
-          <div style={{ fontSize: '36px', marginBottom: '12px' }}>💰</div>
-          <div style={{ fontSize: '15px', color: '#6b7280', marginBottom: '6px' }}>Nenhuma transação neste período</div>
-        </div>
-      ) : (
-        <div style={{ background: '#111318', border: '1px solid #1f2229', borderRadius: '10px', overflow: 'hidden' }}>
-          {byTab.map((t, i) => (
-            <div key={t.id} style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', borderBottom: i < byTab.length - 1 ? '1px solid #1f2229' : 'none', gap: '12px' }}>
-              <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: TYPE_COLOR[t.type] || '#555', flexShrink: 0 }} />
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: '13px', color: '#f0ece4', fontWeight: 500 }}>{t.description || '—'}</div>
-                <div style={{ fontSize: '11px', color: '#4b5563', marginTop: '2px' }}>
-                  {TYPE_LABEL[t.type]}
-                  {t.category ? ` · ${t.category}` : ''}
-                  {t.transaction_date ? ` · ${fd(t.transaction_date)}` : ''}
+      {/* Gastos por Categoria */}
+      {topCats.length > 0 && (
+        <div style={{ background: '#111318', border: '1px solid #1f2229', borderRadius: '12px', padding: '16px 20px', marginBottom: '24px' }}>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '15px', fontWeight: 700, color: '#f0ece4', marginBottom: '14px' }}>📊 Gastos por Categoria</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {topCats.map(({ cat, total }) => (
+              <div key={cat} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '120px', fontSize: '12px', color: '#c0bdb5', flexShrink: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat}</div>
+                <div style={{ flex: 1, background: '#1a1d24', borderRadius: '4px', height: '6px', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', background: '#e8924a', borderRadius: '4px', width: `${(total / maxCatTotal) * 100}%`, transition: 'width .3s' }} />
                 </div>
+                <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '12px', color: '#e8924a', flexShrink: 0, minWidth: '70px', textAlign: 'right' }}>{fv(total)}</div>
               </div>
-              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '14px', color: TYPE_COLOR[t.type] || '#f0ece4', flexShrink: 0 }}>
-                {(t.type === 'saida' || t.type === 'apag') ? '-' : '+'}{fv(t.value)}
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Histórico completo — collapsible */}
+      <div style={{ marginBottom: '24px' }}>
+        <button
+          onClick={() => setShowHistorico(v => !v)}
+          style={{ ...btn('ghost'), width: '100%', justifyContent: 'space-between', padding: '10px 16px' }}
+        >
+          <span>Ver histórico completo ({filtered.length})</span>
+          <span style={{ fontSize: '11px', color: '#4b5563' }}>{showHistorico ? '▲' : '▼'}</span>
+        </button>
+        {showHistorico && (
+          <div style={{ background: '#111318', border: '1px solid #1f2229', borderTop: 'none', borderRadius: '0 0 10px 10px', overflow: 'hidden' }}>
+            {filtered.length === 0 ? (
+              <div style={{ padding: '24px', textAlign: 'center', fontSize: '13px', color: '#4b5563' }}>Nenhuma transação neste período</div>
+            ) : (
+              filtered.map((t, i) => (
+                <div key={t.id} style={{ display: 'flex', alignItems: 'center', padding: '10px 16px', borderBottom: i < filtered.length - 1 ? '1px solid #1a1d24' : 'none', gap: '10px' }}>
+                  <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: TYPE_COLOR[t.type] || '#555', flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '12px', color: '#f0ece4', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.description || '—'}</div>
+                    <div style={{ fontSize: '11px', color: '#4b5563', marginTop: '1px' }}>
+                      <span style={{ color: TYPE_COLOR[t.type] }}>{TYPE_LABEL[t.type]}</span>
+                      {t.category ? ` · ${t.category}` : ''}
+                      {t.transaction_date ? ` · ${fd(t.transaction_date)}` : ''}
+                    </div>
+                  </div>
+                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '13px', color: TYPE_COLOR[t.type] || '#f0ece4', flexShrink: 0 }}>
+                    {(t.type === 'saida' || t.type === 'apag') ? '-' : '+'}{fv(t.value)}
+                  </div>
+                  <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                    <button onClick={() => openEdit(t)} style={{ ...btn('ghost'), padding: '3px 8px', fontSize: '11px' }}>✏️</button>
+                    <button onClick={() => handleDelete(t.id)} style={{ ...btn('danger'), padding: '3px 8px', fontSize: '11px' }}>🗑</button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Pay Modal */}
+      {showPayModal && payTx && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '20px' }}>
+          <div style={{ background: '#111318', border: '1px solid #1f2229', borderRadius: '12px', width: '100%', maxWidth: '380px' }}>
+            <div style={{ padding: '20px 24px', borderBottom: '1px solid #1f2229', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '15px', color: '#f0ece4' }}>
+                {payTx.type === 'arec' ? '✓ Confirmar Recebimento' : '✓ Confirmar Pagamento'}
+              </h3>
+              <button onClick={() => setShowPayModal(false)} style={{ background: 'none', border: 'none', color: '#4b5563', cursor: 'pointer', fontSize: '20px' }}>×</button>
+            </div>
+            <div style={{ padding: '20px 24px' }}>
+              <div style={{ marginBottom: '16px', padding: '12px 14px', background: '#0d0f12', borderRadius: '8px', fontSize: '13px', color: '#888' }}>
+                {payTx.description || '—'}
+                {payTx.transaction_date && <span style={{ marginLeft: '8px', color: '#555' }}>· {fd(payTx.transaction_date)}</span>}
               </div>
-              <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
-                {(t.type === 'arec' || t.type === 'apag') && (
-                  <button onClick={() => handleConfirm(t)} style={{ ...btn('green'), padding: '4px 10px', fontSize: '11px' }}>
-                    {t.type === 'arec' ? '✓ Recebido' : '✓ Pago'}
-                  </button>
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>
+                  Valor {payTx.type === 'arec' ? 'Recebido' : 'Pago'} (R$)
+                </label>
+                <input
+                  type="number"
+                  autoFocus
+                  style={{ ...inp, fontSize: '18px', color: payTx.type === 'arec' ? '#5db87a' : '#e8924a', fontWeight: 700 }}
+                  value={payAmount}
+                  onChange={e => setPayAmount(Number(e.target.value))}
+                  min={0}
+                  step={0.01}
+                />
+                {payAmount !== payTx.value && (
+                  <div style={{ fontSize: '11px', color: '#4b5563', marginTop: '4px' }}>
+                    Original: {fv(payTx.value)} · Diferença: {fv(payAmount - payTx.value)}
+                  </div>
                 )}
-                <button onClick={() => openEdit(t)} style={{ ...btn('ghost'), padding: '4px 10px', fontSize: '11px' }}>✏️</button>
-                <button onClick={() => handleDelete(t.id)} style={{ ...btn('danger'), padding: '4px 10px', fontSize: '11px' }}>🗑</button>
+              </div>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button onClick={() => setShowPayModal(false)} style={btn('ghost')}>Cancelar</button>
+                <button onClick={handleConfirmPay} style={btn('green')}>
+                  {payTx.type === 'arec' ? '✓ Marcar Recebido' : '✓ Marcar Pago'}
+                </button>
               </div>
             </div>
-          ))}
+          </div>
         </div>
       )}
 

@@ -80,3 +80,60 @@ select option {
 
 /* ── Utilitários de fonte ───────────────────────────────────── */
 .font-syne { font-family: var(--font-syne), 'Syne', sans-serif; }
+
+/* ── Responsividade Mobile ──────────────────────────────────── */
+
+/* Modals — full screen em mobile */
+@media (max-width: 640px) {
+  .modal-box {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+  }
+  .modal-overlay {
+    padding: 0 !important;
+    align-items: flex-end !important;
+  }
+}
+
+/* Grids adaptativos */
+@media (max-width: 640px) {
+  .grid-auto { grid-template-columns: 1fr !important; }
+  .grid-2    { grid-template-columns: 1fr !important; }
+  .grid-3    { grid-template-columns: 1fr 1fr !important; }
+  .grid-4    { grid-template-columns: 1fr 1fr !important; }
+}
+
+/* Hamburger padding no conteúdo principal quando sidebar fechada */
+@media (max-width: 767px) {
+  .main-content { padding-top: 52px !important; }
+  .page-header  { padding-top: 52px !important; }
+}
+
+/* KPI cards */
+@media (max-width: 480px) {
+  .kpi-grid { grid-template-columns: 1fr 1fr !important; }
+}
+
+/* Tabelas / listas com scroll horizontal */
+@media (max-width: 640px) {
+  .scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+}
+
+/* Texto truncado em mobile */
+@media (max-width: 640px) {
+  .mobile-truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 160px;
+  }
+}
+
+/* Botões empilhados em mobile */
+@media (max-width: 480px) {
+  .btn-group-mobile { flex-wrap: wrap !important; }
+  .btn-group-mobile > * { flex: 1 !important; justify-content: center; }
+}

@@ -16,9 +16,9 @@ const ST_COLOR: Record<string, string> = { orcamento: '#5b9bd5', para_captacao: 
 const PIPELINE = ['para_captacao', 'producao', 'edicao', 'enviado', 'entregue'] as const
 
 interface Client { id: string; name: string }
-interface Freelancer { id: string; name: string; area?: string }
+interface Freelancer { id: string; name: string; area?: string; daily_rate?: number }
 interface RentalCompany { id: string; name: string }
-interface CustoItem { d: string; v: number; cat?: string }
+interface CustoItem { d: string; v: number; cat?: string; freelancerId?: string }
 interface PgtoItem { d: string; v: number; dt: string; rec: boolean }
 interface DiariaItem { desc: string; qtd: number; v: number; rentalCompanyId?: string }
 interface CostCategory { value: string; label: string }
@@ -178,26 +178,52 @@ export default function ProjectsPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'para_captacao' }),
     })
-    // Criar transações a pagar para cada custo do projeto
+    // Criar transações para custos (apag) e recebimentos (arec)
     if (proj) {
       const today = new Date().toISOString().split('T')[0]
       const txs: object[] = []
+      // Custos → A Pagar
       for (const c of proj.data?.custos || []) {
-        if (Number(c.v) > 0) txs.push({ type: 'apag', value: c.v, description: `${c.cat ? `[${c.cat}] ` : ''}${c.d} — ${proj.name}`, category: c.cat || 'Produção', transaction_date: today })
+        if (Number(c.v) > 0) {
+          const freeName = c.freelancerId ? freelancers.find(f => f.id === c.freelancerId)?.name : null
+          txs.push({ type: 'apag', value: c.v, description: `${c.cat ? `[${c.cat}] ` : ''}${freeName ? freeName : c.d} — ${proj.name}`, category: c.cat || 'Produção', transaction_date: today })
+        }
       }
+      // Diárias → A Pagar
       for (const d of proj.data?.diarias || []) {
         const total = Number(d.qtd || 1) * Number(d.v || 0)
-        if (total > 0) txs.push({ type: 'apag', value: total, description: `${d.desc} ×${d.qtd} — ${proj.name}`, category: 'Produção', transaction_date: today })
+        if (total > 0) txs.push({ type: 'apag', value: total, description: `${d.desc} ×${d.qtd} — ${proj.name}`, category: 'Locação', transaction_date: today })
       }
+      // Freelancers (freeIds) → A Pagar
       for (const fid of proj.data?.freeIds || []) {
         const fl = freelancers.find(f => f.id === fid)
         if (fl) txs.push({ type: 'apag', value: fl.daily_rate || 0, description: `Freelancer: ${fl.name} — ${proj.name}`, category: 'Freela', transaction_date: today })
       }
+      // Recebimentos (pgtos) → A Receber
+      for (const pg of proj.data?.pgtos || []) {
+        if (!pg.rec && Number(pg.v) > 0) txs.push({ type: 'arec', value: pg.v, description: `${pg.d || 'Pagamento'} — ${proj.name}`, category: 'Projeto', transaction_date: pg.dt || today })
+      }
       await Promise.all(txs.map(tx => fetch('/api/transactions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(tx) })))
     }
     await load()
-    showToast('Projeto aprovado! Custos adicionados a A Pagar.')
+    showToast('Projeto aprovado! Custos → A Pagar · Recebimentos → A Receber.')
     setMainTab('projetos')
+  }
+
+  async function handleAddClient() {
+    if (!newClientName.trim()) return
+    setNewClientSaving(true)
+    try {
+      const res = await fetch('/api/clients', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newClientName.trim() }) })
+      if (!res.ok) throw new Error('Erro')
+      const client = await res.json()
+      setClients(cs => [...cs, client])
+      upd('client_id', client.id)
+      setShowAddClient(false)
+      setNewClientName('')
+      showToast('Cliente criado!')
+    } catch { showToast('Erro ao criar cliente') }
+    finally { setNewClientSaving(false) }
   }
 
   const orcamentos = projects.filter(p => p.status === 'orcamento')
@@ -263,7 +289,7 @@ export default function ProjectsPage() {
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '12px' }}>
               {orcamentos.map(p => (
-                <div key={p.id} style={{ background: '#111', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '18px', position: 'relative', overflow: 'hidden' }}>
+                <div key={p.id} onClick={() => setViewProject(p)} style={{ background: '#111', border: '1px solid #2a2a2a', borderRadius: '10px', padding: '18px', position: 'relative', overflow: 'hidden', cursor: 'pointer' }}>
                   <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: '#5b9bd5' }} />
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                     <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 600, fontSize: '14px', color: '#f0ece4', flex: 1, marginRight: '8px' }}>{p.name}</div>
@@ -278,17 +304,17 @@ export default function ProjectsPage() {
                     <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '16px', color: '#f0ece4' }}>{fv(p.value)}</span>
                   </div>
                   <div style={{ display: 'flex', gap: '6px', paddingTop: '10px', borderTop: '1px solid #1a1a1a', flexWrap: 'wrap' as const }}>
-                    <button onClick={() => openEdit(p)} style={{ ...btn('ghost'), flex: 1, justifyContent: 'center', padding: '6px 10px', fontSize: '12px' }}>✏️ Editar</button>
-                    <button onClick={() => handleApprove(p.id)} style={{ ...btn('green'), flex: 1, justifyContent: 'center', padding: '6px 10px', fontSize: '12px' }}>✅ Aprovar</button>
+                    <button onClick={e => { e.stopPropagation(); openEdit(p) }} style={{ ...btn('ghost'), flex: 1, justifyContent: 'center', padding: '6px 10px', fontSize: '12px' }}>✏️ Editar</button>
+                    <button onClick={e => { e.stopPropagation(); handleApprove(p.id) }} style={{ ...btn('green'), flex: 1, justifyContent: 'center', padding: '6px 10px', fontSize: '12px' }}>✅ Aprovar</button>
                     {p.quote_token && (
-                      <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/orcamento/${p.quote_token}`); showToast('Link copiado!') }}
+                      <button onClick={e => { e.stopPropagation(); navigator.clipboard.writeText(`${window.location.origin}/orcamento/${p.quote_token}`); showToast('Link copiado!') }}
                         style={{ ...btn('ghost'), padding: '6px 10px', fontSize: '12px' }} title="Copiar link de aprovação">🔗</button>
                     )}
                     {p.quote_token && (
-                      <button onClick={() => window.open(`/orcamento/${p.quote_token}`, '_blank')}
+                      <button onClick={e => { e.stopPropagation(); window.open(`/orcamento/${p.quote_token}`, '_blank') }}
                         style={{ ...btn('ghost'), padding: '6px 10px', fontSize: '12px' }} title="Ver e imprimir PDF">📄</button>
                     )}
-                    <button onClick={() => handleDelete(p.id)} style={{ ...btn('danger'), padding: '6px 10px', fontSize: '12px' }}>🗑</button>
+                    <button onClick={e => { e.stopPropagation(); handleDelete(p.id) }} style={{ ...btn('danger'), padding: '6px 10px', fontSize: '12px' }}>🗑</button>
                   </div>
                 </div>
               ))}
@@ -304,11 +330,12 @@ export default function ProjectsPage() {
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' as const, marginBottom: '20px' }}>
             {[
               { key: 'todos', label: `Todos (${projetos.length})` },
-              { key: 'para_captacao', label: `Para Captação (${projetos.filter(p => p.status === 'para_captacao').length})` },
-              { key: 'captado', label: `Captado (${projetos.filter(p => p.status === 'captado').length})` },
+              { key: 'para_captacao', label: `Captação (${projetos.filter(p => p.status === 'para_captacao').length})` },
+              { key: 'producao', label: `Produção (${projetos.filter(p => p.status === 'producao').length})` },
               { key: 'edicao', label: `Edição (${projetos.filter(p => p.status === 'edicao').length})` },
-              { key: 'entregue', label: `Entregues (${projetos.filter(p => p.status === 'entregue').length})` },
-              { key: 'pausado', label: `Pausados (${projetos.filter(p => p.status === 'pausado').length})` },
+              { key: 'enviado', label: `Enviado (${projetos.filter(p => p.status === 'enviado').length})` },
+              { key: 'entregue', label: `Finalizado (${projetos.filter(p => p.status === 'entregue').length})` },
+              { key: 'pausado', label: `Pausado (${projetos.filter(p => p.status === 'pausado').length})` },
             ].map(t => (
               <button key={t.key} onClick={() => setSubTab(t.key)}
                 style={{ padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: 500, cursor: 'pointer', border: 'none', background: subTab === t.key ? 'rgba(232,197,71,.15)' : '#1a1a1a', color: subTab === t.key ? '#e8c547' : '#555', transition: 'all .12s' }}>
@@ -351,15 +378,68 @@ export default function ProjectsPage() {
                       <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '16px', color: '#f0ece4' }}>{fv(p.value)}</span>
                       {pend > 0 ? <span style={{ fontSize: '11px', color: '#e8924a' }}>⏳ {fv(pend)}</span> : p.status === 'entregue' ? <span style={{ fontSize: '11px', color: '#5db87a' }}>✓ Quitado</span> : <span style={{ fontSize: '11px', color: '#555' }}>{prog}%</span>}
                     </div>
-                    <div style={{ display: 'flex', gap: '6px', paddingTop: '10px', borderTop: '1px solid #1a1a1a' }}>
-                      <button onClick={e => { e.stopPropagation(); openEdit(p) }} style={{ ...btn('ghost'), flex: 1, justifyContent: 'center', padding: '6px 10px', fontSize: '12px' }}>✏️ Editar</button>
-                      <button onClick={e => { e.stopPropagation(); handleDelete(p.id) }} style={{ ...btn('danger'), padding: '6px 10px', fontSize: '12px' }}>🗑</button>
+                    <div style={{ display: 'flex', gap: '6px', paddingTop: '10px', borderTop: '1px solid #1a1a1a', alignItems: 'center' }}>
+                      {(() => {
+                        const pipeIdx = (PIPELINE as readonly string[]).indexOf(p.status)
+                        const prevSt = pipeIdx > 0 ? PIPELINE[pipeIdx - 1] : null
+                        const nextSt = pipeIdx >= 0 && pipeIdx < PIPELINE.length - 1 ? PIPELINE[pipeIdx + 1] : null
+                        return (
+                          <>
+                            {prevSt && (
+                              <button onClick={e => { e.stopPropagation(); handleStatusChange(p.id, prevSt) }}
+                                style={{ background: 'transparent', border: '1px solid #2a2a2a', color: '#555', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', flexShrink: 0 }}
+                                title={`← ${ST_LABEL[prevSt]}`}>←</button>
+                            )}
+                            <button onClick={e => { e.stopPropagation(); openEdit(p) }} style={{ ...btn('ghost'), flex: 1, justifyContent: 'center', padding: '6px 8px', fontSize: '12px' }}>✏️</button>
+                            {nextSt && (
+                              <button onClick={e => { e.stopPropagation(); handleStatusChange(p.id, nextSt) }}
+                                style={{ background: (ST_COLOR[nextSt] || '#555') + '22', border: 'none', color: ST_COLOR[nextSt] || '#f0ece4', padding: '6px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: 600, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
+                                title={`→ ${ST_LABEL[nextSt]}`}>{ST_LABEL[nextSt]} →</button>
+                            )}
+                            <button onClick={e => { e.stopPropagation(); handleDelete(p.id) }} style={{ ...btn('danger'), padding: '6px 8px', fontSize: '12px' }}>🗑</button>
+                          </>
+                        )
+                      })()}
                     </div>
                   </div>
                 )
               })}
             </div>
           )}
+
+          {/* Concluídos */}
+          {(() => {
+            const concluidos = projetos.filter(p => p.status === 'entregue')
+            if (concluidos.length === 0) return null
+            return (
+              <div style={{ marginTop: '32px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                  <div style={{ height: '1px', flex: 1, background: '#1a1a1a' }} />
+                  <span style={{ fontSize: '12px', color: '#555', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '1px' }}>✅ Concluídos ({concluidos.length})</span>
+                  <div style={{ height: '1px', flex: 1, background: '#1a1a1a' }} />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {concluidos.map(p => {
+                    const rec = (p.data?.pgtos || []).filter(x => x.rec).reduce((s, x) => s + Number(x.v || 0), 0)
+                    return (
+                      <div key={p.id} onClick={() => setViewProject(p)} style={{ background: '#111', border: '1px solid #1e1e1e', borderRadius: '8px', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', opacity: 0.7 }}>
+                        <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#5db87a', flexShrink: 0 }} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '13px', color: '#d1d5db', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{p.name}</div>
+                          <div style={{ fontSize: '11px', color: '#555', marginTop: '2px' }}>{p.clients?.name || '—'}{p.delivery_date ? ` · ${fd(p.delivery_date)}` : ''}</div>
+                        </div>
+                        <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '14px', color: '#5db87a', flexShrink: 0 }}>{fv(rec)}</span>
+                        <div style={{ display: 'flex', gap: '4px' }}>
+                          <button onClick={e => { e.stopPropagation(); openEdit(p) }} style={{ ...btn('ghost'), padding: '4px 8px', fontSize: '11px' }}>✏️</button>
+                          <button onClick={e => { e.stopPropagation(); handleDelete(p.id) }} style={{ ...btn('danger'), padding: '4px 8px', fontSize: '11px' }}>🗑</button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })()}
         </div>
       )}
 
@@ -382,10 +462,20 @@ export default function ProjectsPage() {
                 </div>
                 <div>
                   <label style={{ display: 'block', fontSize: '11px', color: '#555', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Cliente</label>
-                  <select style={{ ...inp }} value={form.client_id || ''} onChange={e => upd('client_id', e.target.value)}>
-                    <option value="">Selecionar...</option>
-                    {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <select style={{ ...inp, flex: 1 }} value={form.client_id || ''} onChange={e => upd('client_id', e.target.value)}>
+                      <option value="">Selecionar...</option>
+                      {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                    <button type="button" onClick={() => setShowAddClient(s => !s)} style={{ ...btn('ghost'), padding: '8px 12px', flexShrink: 0, fontWeight: 700, fontSize: '16px' }} title="Novo cliente">+</button>
+                  </div>
+                  {showAddClient && (
+                    <div style={{ marginTop: '6px', display: 'flex', gap: '6px' }}>
+                      <input autoFocus style={{ ...inp, flex: 1 }} value={newClientName} onChange={e => setNewClientName(e.target.value)} placeholder="Nome do cliente..." onKeyDown={e => e.key === 'Enter' && handleAddClient()} />
+                      <button type="button" onClick={handleAddClient} disabled={newClientSaving} style={{ ...btn('primary'), padding: '8px 12px', flexShrink: 0 }}>{newClientSaving ? '...' : '✓'}</button>
+                      <button type="button" onClick={() => { setShowAddClient(false); setNewClientName('') }} style={{ ...btn('ghost'), padding: '8px 12px', flexShrink: 0 }}>✕</button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -399,25 +489,21 @@ export default function ProjectsPage() {
                   <label style={{ display: 'block', fontSize: '11px', color: '#555', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Status</label>
                   <select style={{ ...inp }} value={form.status || 'orcamento'} onChange={e => upd('status', e.target.value)}>
                     <option value="orcamento">Orçamento</option>
-                    <option value="para_captacao">Para Captação</option>
-                    <option value="captado">Captado</option>
+                    <option value="para_captacao">Aprovado / Para Captação</option>
+                    <option value="producao">Em Produção</option>
                     <option value="edicao">Edição</option>
-                    <option value="entregue">Entregue</option>
+                    <option value="enviado">Enviado</option>
+                    <option value="entregue">Finalizado / Entregue</option>
                     <option value="pausado">Pausado</option>
+                    <option value="orcamento_desaprovado">Reprovado</option>
                   </select>
                 </div>
               </div>
 
-              {/* Row 3: delivery_date + delivery_time */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', color: '#555', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Data de entrega</label>
-                  <input type="date" style={inp} value={form.delivery_date || ''} onChange={e => upd('delivery_date', e.target.value)} />
-                </div>
-                <div>
-                  <label style={{ display: 'block', fontSize: '11px', color: '#555', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Horário de entrega</label>
-                  <input type="time" style={inp} value={form.data?.delivery_time || ''} onChange={e => updData('delivery_time', e.target.value)} />
-                </div>
+              {/* Row 3: delivery_date */}
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', fontSize: '11px', color: '#555', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Data de Entrega</label>
+                <input type="date" style={inp} value={form.delivery_date || ''} onChange={e => upd('delivery_date', e.target.value)} />
               </div>
               {editing && (
                 <div style={{ marginBottom: '12px' }}>
@@ -460,12 +546,13 @@ export default function ProjectsPage() {
               <div style={{ borderTop: '1px solid #1a1a1a', paddingTop: '16px', marginBottom: '16px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                   <span style={{ fontSize: '12px', fontWeight: 600, color: '#888' }}>📅 Datas de Captação</span>
-                  <button onClick={() => updData('dCapt', [...(form.data?.dCapt || []), ''])} style={{ ...btn('ghost'), padding: '4px 10px', fontSize: '11px' }}>+ Adicionar</button>
+                  <button onClick={() => { updData('dCapt', [...(form.data?.dCapt || []), '']); updData('dCaptTimes', [...(form.data?.dCaptTimes || []), '']) }} style={{ ...btn('ghost'), padding: '4px 10px', fontSize: '11px' }}>+ Adicionar</button>
                 </div>
                 {(form.data?.dCapt || []).map((d, i) => (
                   <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '6px' }}>
-                    <input type="date" style={{ ...inp, flex: 1 }} value={d} onChange={e => { const arr = [...(form.data?.dCapt || [])]; arr[i] = e.target.value; updData('dCapt', arr) }} />
-                    <button onClick={() => { const arr = [...(form.data?.dCapt || [])]; arr.splice(i, 1); updData('dCapt', arr) }} style={{ ...btn('danger'), padding: '4px 10px' }}>✕</button>
+                    <input type="date" style={{ ...inp, flex: 2 }} value={d} onChange={e => { const arr = [...(form.data?.dCapt || [])]; arr[i] = e.target.value; updData('dCapt', arr) }} />
+                    <input type="time" style={{ ...inp, flex: 1 }} value={(form.data?.dCaptTimes || [])[i] || ''} onChange={e => { const arr = [...(form.data?.dCaptTimes || Array((form.data?.dCapt || []).length).fill(''))]; arr[i] = e.target.value; updData('dCaptTimes', arr) }} placeholder="Hora" />
+                    <button onClick={() => { const dates = [...(form.data?.dCapt || [])]; const times = [...(form.data?.dCaptTimes || [])]; dates.splice(i, 1); times.splice(i, 1); updData('dCapt', dates); updData('dCaptTimes', times) }} style={{ ...btn('danger'), padding: '4px 10px' }}>✕</button>
                   </div>
                 ))}
               </div>
@@ -477,14 +564,29 @@ export default function ProjectsPage() {
                   <button onClick={() => updData('custos', [...(form.data?.custos || []), { d: '', v: 0 }])} style={{ ...btn('ghost'), padding: '4px 10px', fontSize: '11px' }}>+ Adicionar</button>
                 </div>
                 {(form.data?.custos || []).map((c, i) => (
-                  <div key={i} style={{ display: 'flex', gap: '8px', marginBottom: '6px' }}>
-                    <select style={{ ...inp, flex: '0 0 130px' as unknown as number }} value={c.cat || ''} onChange={e => { const arr = [...(form.data?.custos || [])]; arr[i] = { ...arr[i], cat: e.target.value }; updData('custos', arr) }}>
-                      <option value="">Categoria</option>
-                      {costCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                    </select>
-                    <input style={{ ...inp, flex: 2 }} value={c.d} onChange={e => { const arr = [...(form.data?.custos || [])]; arr[i] = { ...arr[i], d: e.target.value }; updData('custos', arr) }} placeholder="Descrição..." />
-                    <input type="number" style={{ ...inp, flex: 1, minWidth: '80px' }} value={c.v || ''} onChange={e => { const arr = [...(form.data?.custos || [])]; arr[i] = { ...arr[i], v: Number(e.target.value) || 0 }; updData('custos', arr) }} placeholder="R$" />
-                    <button onClick={() => { const arr = [...(form.data?.custos || [])]; arr.splice(i, 1); updData('custos', arr) }} style={{ ...btn('danger'), padding: '4px 10px' }}>✕</button>
+                  <div key={i} style={{ marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', gap: '8px', marginBottom: c.cat === 'Freela' ? '4px' : '0' }}>
+                      <select style={{ ...inp, flex: '0 0 130px' as unknown as number }} value={c.cat || ''} onChange={e => { const arr = [...(form.data?.custos || [])]; arr[i] = { ...arr[i], cat: e.target.value, freelancerId: '' }; updData('custos', arr) }}>
+                        <option value="">Categoria</option>
+                        {costCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                      </select>
+                      {c.cat !== 'Freela' && (
+                        <input style={{ ...inp, flex: 2 }} value={c.d} onChange={e => { const arr = [...(form.data?.custos || [])]; arr[i] = { ...arr[i], d: e.target.value }; updData('custos', arr) }} placeholder="Descrição..." />
+                      )}
+                      {c.cat === 'Freela' && (
+                        <select style={{ ...inp, flex: 2, color: c.freelancerId ? '#f0ece4' : '#555' }} value={c.freelancerId || ''} onChange={e => { const fl = freelancers.find(f => f.id === e.target.value); const arr = [...(form.data?.custos || [])]; arr[i] = { ...arr[i], freelancerId: e.target.value, d: fl?.name || '' }; updData('custos', arr) }}>
+                          <option value="">Selecionar Freela...</option>
+                          {freelancers.map(f => <option key={f.id} value={f.id}>{f.name}{f.area ? ` · ${f.area}` : ''}</option>)}
+                        </select>
+                      )}
+                      <input type="number" style={{ ...inp, flex: 1, minWidth: '80px' }} value={c.v || ''} onChange={e => { const arr = [...(form.data?.custos || [])]; arr[i] = { ...arr[i], v: Number(e.target.value) || 0 }; updData('custos', arr) }} placeholder="R$" />
+                      <button onClick={() => { const arr = [...(form.data?.custos || [])]; arr.splice(i, 1); updData('custos', arr) }} style={{ ...btn('danger'), padding: '4px 10px' }}>✕</button>
+                    </div>
+                    {c.cat === 'Freela' && c.freelancerId && (
+                      <div style={{ fontSize: '11px', color: '#555', paddingLeft: '4px' }}>
+                        💡 O valor será vinculado ao freelancer no contas a pagar ao aprovar
+                      </div>
+                    )}
                   </div>
                 ))}
                 {(form.data?.custos || []).length > 0 && <div style={{ textAlign: 'right', fontSize: '12px', color: '#888' }}>Total custos: <strong style={{ color: '#f0ece4' }}>{fv(totalCustos)}</strong></div>}
@@ -609,7 +711,7 @@ export default function ProjectsPage() {
                   <span style={{ padding: '3px 10px', borderRadius: '6px', background: st.color + '28', color: st.color, fontWeight: 700, fontSize: '11px', letterSpacing: '.5px', textTransform: 'uppercase' as const }}>{st.label}</span>
                   {p.type && <span style={{ color: '#888' }}>{p.type}</span>}
                   {p.clients?.name && <span style={{ color: '#888' }}>👤 {p.clients.name}</span>}
-                  {p.delivery_date && <span style={{ color: '#888' }}>📅 Entrega {fd(p.delivery_date)}{p.data?.delivery_time ? ` ${p.data.delivery_time}` : ''}</span>}
+                  {p.delivery_date && <span style={{ color: '#888' }}>📅 Entrega {fd(p.delivery_date)}</span>}
                   {p.status !== 'orcamento' && <span style={{ color: '#5db87a', fontWeight: 600, fontSize: '12px' }}>✅ Aprovado pelo cliente</span>}
                 </div>
               </div>
@@ -649,7 +751,10 @@ export default function ProjectsPage() {
                       <div style={{ fontSize: '13px', color: '#d1d5db' }}>
                         <span style={{ marginRight: '6px' }}>📷</span>
                         <span style={{ color: '#888' }}>Captações: </span>
-                        {captDates.map(d => fd(d)).join(' · ')}
+                        {captDates.map((d, i) => {
+                          const t = (p.data?.dCaptTimes || [])[i]
+                          return (fd(d) + (t ? ` ${t}` : ''))
+                        }).join(' · ')}
                       </div>
                     )}
                     {freeNames.length > 0 && (
@@ -731,15 +836,33 @@ export default function ProjectsPage() {
               </div>
 
               {/* ── Footer buttons ── */}
-              <div style={{ padding: '16px 28px', borderTop: '1px solid #1e1e1e', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                <button onClick={() => setViewProject(null)} style={{ ...btn('ghost'), padding: '8px 20px' }}>Fechar</button>
-                {p.quote_token && (
-                  <button onClick={() => window.open(`/orcamento/${p.quote_token}`, '_blank')} style={{ ...btn('ghost'), padding: '8px 20px' }}>📄 Orçamento</button>
-                )}
-                {p.quote_token && (
-                  <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/orcamento/${p.quote_token}`); showToast('Link copiado!') }} style={{ ...btn('ghost'), padding: '8px 20px' }}>🔗 Link do Cliente</button>
-                )}
-                <button onClick={() => { setViewProject(null); openEdit(p) }} style={{ ...btn('primary'), padding: '8px 20px' }}>✏️ Editar</button>
+              <div style={{ padding: '16px 28px', borderTop: '1px solid #1e1e1e', display: 'flex', gap: '8px', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' as const }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {(() => {
+                    const pipeIdx = (PIPELINE as readonly string[]).indexOf(p.status)
+                    const prevSt = pipeIdx > 0 ? PIPELINE[pipeIdx - 1] : null
+                    const nextSt = pipeIdx >= 0 && pipeIdx < PIPELINE.length - 1 ? PIPELINE[pipeIdx + 1] : null
+                    return (
+                      <>
+                        {prevSt && <button onClick={() => handleStatusChange(p.id, prevSt)} style={{ background: 'transparent', border: '1px solid #2a2a2a', color: '#888', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px' }}>← {ST_LABEL[prevSt]}</button>}
+                        {nextSt && <button onClick={() => handleStatusChange(p.id, nextSt)} style={{ background: (ST_COLOR[nextSt] || '#555') + '22', border: 'none', color: ST_COLOR[nextSt] || '#f0ece4', padding: '8px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 600, cursor: 'pointer' }}>{ST_LABEL[nextSt]} →</button>}
+                      </>
+                    )
+                  })()}
+                </div>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' as const }}>
+                  <button onClick={() => setViewProject(null)} style={{ ...btn('ghost'), padding: '8px 16px' }}>Fechar</button>
+                  {p.quote_token && (
+                    <button onClick={() => window.open(`/orcamento/${p.quote_token}`, '_blank')} style={{ ...btn('ghost'), padding: '8px 14px' }}>📄</button>
+                  )}
+                  {p.quote_token && (
+                    <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/orcamento/${p.quote_token}`); showToast('Link copiado!') }} style={{ ...btn('ghost'), padding: '8px 14px' }}>🔗</button>
+                  )}
+                  {p.status === 'orcamento' && (
+                    <button onClick={() => { handleApprove(p.id); setViewProject(null) }} style={{ ...btn('green'), padding: '8px 16px' }}>✅ Aprovar</button>
+                  )}
+                  <button onClick={() => { setViewProject(null); openEdit(p) }} style={{ ...btn('primary'), padding: '8px 16px' }}>✏️ Editar</button>
+                </div>
               </div>
             </div>
           </div>

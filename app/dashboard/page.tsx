@@ -89,10 +89,14 @@ export default function DashboardPage() {
   const in7 = new Date(); in7.setDate(in7.getDate() + 7); const in7str = in7.toISOString().split('T')[0]
   const urgentProjects = projects.filter(p => p.delivery_date && p.delivery_date >= today && p.delivery_date <= in7str && p.status !== 'entregue')
 
-  const totalReceived = transactions.filter(t => t.type === 'entrada').reduce((s, t) => s + Number(t.value), 0)
   const totalPending = transactions.filter(t => t.type === 'arec').reduce((s, t) => s + Number(t.value), 0)
-  const totalExpenses = transactions.filter(t => t.type === 'saida').reduce((s, t) => s + Number(t.value), 0)
-  const margem = totalReceived > 0 ? Math.round(((totalReceived - totalExpenses) / totalReceived) * 100) : 0
+  const nowDate = new Date()
+  const nowMonth = nowDate.getMonth() + 1
+  const nowYear = nowDate.getFullYear()
+  const aPagarMes = transactions
+    .filter(t => t.type === 'apag' && t.transaction_date)
+    .filter(t => { const [y, m] = (t.transaction_date as string).split('-'); return Number(y) === nowYear && Number(m) === nowMonth })
+    .reduce((s, t) => s + Number(t.value), 0)
 
   const upcomingEvents = events.filter(e => e.event_date >= today).slice(0, 5)
   const recentProjects = [...projects].sort((a, b) => 0).slice(0, 6)
@@ -125,7 +129,7 @@ export default function DashboardPage() {
             { label: 'PROJETOS ATIVOS', value: activeProjects.length.toString(), sub: `${projects.filter(p => p.status === 'entregue').length} entregues`, color: '#e8c547' },
             { label: 'PROJETOS PENDENTES', value: pendingProjects.length.toString(), sub: `${quoteProjects.length} orçamento${quoteProjects.length !== 1 ? 's' : ''} aberto${quoteProjects.length !== 1 ? 's' : ''}`, color: '#5b9bd5' },
             { label: 'A RECEBER', value: fv(totalPending), sub: 'pendente', color: '#e8924a' },
-            { label: 'MARGEM', value: `${margem}%`, sub: 'após despesas', color: margem >= 30 ? '#5db87a' : '#e85d4a' },
+            { label: 'A PAGAR MÊS', value: fv(aPagarMes), sub: aPagarMes > 0 ? 'contas pendentes' : 'sem pendências', color: aPagarMes > 0 ? '#e8924a' : '#5db87a' },
           ].map(k => (
             <div key={k.label} style={{ background: '#111318', border: '1px solid #1f2229', borderRadius: '10px', padding: '18px 20px' }}>
               <div style={{ fontSize: '10px', fontWeight: 700, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '10px' }}>{k.label}</div>

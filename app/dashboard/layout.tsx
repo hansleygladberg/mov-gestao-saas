@@ -25,12 +25,31 @@ interface Counts  { activeProjects: number; quotes: number }
 interface Finance { totalEntradas: number; saldoGeral: number }
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const [user, setUser]       = useState<User | null>(null)
-  const [counts, setCounts]   = useState<Counts>({ activeProjects: 0, quotes: 0 })
-  const [finance, setFinance] = useState<Finance>({ totalEntradas: 0, saldoGeral: 0 })
-  const [loading, setLoading] = useState(true)
+  const [user, setUser]             = useState<User | null>(null)
+  const [counts, setCounts]         = useState<Counts>({ activeProjects: 0, quotes: 0 })
+  const [finance, setFinance]       = useState<Finance>({ totalEntradas: 0, saldoGeral: 0 })
+  const [loading, setLoading]       = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [isDesktop, setIsDesktop]   = useState(true)
   const router   = useRouter()
   const pathname = usePathname()
+
+  // ── Detect mobile/desktop ───────────────────────────────────────────
+  useEffect(() => {
+    function checkWidth() {
+      const desktop = window.innerWidth >= 768
+      setIsDesktop(desktop)
+      if (desktop) setSidebarOpen(false)
+    }
+    checkWidth()
+    window.addEventListener('resize', checkWidth)
+    return () => window.removeEventListener('resize', checkWidth)
+  }, [])
+
+  // ── Auto-close sidebar on navigation (mobile) ───────────────────────
+  useEffect(() => {
+    if (!isDesktop) setSidebarOpen(false)
+  }, [pathname, isDesktop])
 
   useEffect(() => {
     async function load() {
@@ -98,17 +117,65 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div style={{ fontSize: '10px', color: '#555555', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 400, padding: '10px 10px 5px' }}>{label}</div>
   )
 
+  // ── Sidebar position style (mobile vs desktop) ──
+  const sidebarStyle: React.CSSProperties = {
+    width: '210px',
+    background: '#111111',
+    borderRight: '1px solid #2a2a2a',
+    position: 'fixed',
+    height: '100vh',
+    display: 'flex',
+    flexDirection: 'column',
+    zIndex: 200,
+    flexShrink: 0,
+    top: 0,
+    left: 0,
+    transform: isDesktop ? 'none' : (sidebarOpen ? 'translateX(0)' : 'translateX(-100%)'),
+    transition: 'transform .25s',
+  }
+
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#0a0a0a', fontFamily: 'var(--font-dm-sans), DM Sans, sans-serif' }}>
 
-      {/* ── Sidebar ─────────────────────────────────────────────── */}
-      <aside style={{
-        width: '210px', background: '#111111',
-        borderRight: '1px solid #2a2a2a',
-        position: 'fixed', height: '100vh',
-        display: 'flex', flexDirection: 'column',
-        zIndex: 100, flexShrink: 0,
-      }}>
+      {/* ── Hamburger button (mobile only) ──────────────────────────── */}
+      {!isDesktop && (
+        <button
+          onClick={() => setSidebarOpen(prev => !prev)}
+          aria-label="Abrir menu"
+          style={{
+            position: 'fixed',
+            top: 12,
+            left: 12,
+            zIndex: 201,
+            background: '#111',
+            border: '1px solid #2a2a2a',
+            borderRadius: '8px',
+            padding: '8px 10px',
+            cursor: 'pointer',
+            color: '#f0ece4',
+            fontSize: '18px',
+            lineHeight: 1,
+          }}
+        >
+          &#9776;
+        </button>
+      )}
+
+      {/* ── Backdrop overlay (mobile, sidebar open) ─────────────────── */}
+      {!isDesktop && sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,.55)',
+            zIndex: 199,
+          }}
+        />
+      )}
+
+      {/* ── Sidebar ─────────────────────────────────────────────────── */}
+      <aside style={sidebarStyle}>
 
         {/* Logo */}
         <div style={{ padding: '22px 18px 18px', borderBottom: '1px solid #2a2a2a', background: 'transparent' }}>
@@ -166,8 +233,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      {/* ── Main ────────────────────────────────────────────────── */}
-      <main style={{ flex: 1, marginLeft: '210px', display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+      {/* ── Main ────────────────────────────────────────────────────── */}
+      <main style={{
+        flex: 1,
+        marginLeft: isDesktop ? '210px' : '0',
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: '100vh',
+      }}>
         {children}
       </main>
     </div>

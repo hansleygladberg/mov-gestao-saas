@@ -173,7 +173,7 @@ export default function RentalCompanies() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {companies.map(c => {
-            const records = (c.data?.records || []).sort((a, b) => (b.year ?? 0) * 12 + (b.month ?? 0) - ((a.year ?? 0) * 12 + (a.month ?? 0)))
+            const records = (c.data?.records || []).slice().sort((a, b) => (b.month > a.month ? 1 : b.month < a.month ? -1 : 0))
             const totalPaid = records.reduce((s, r) => s + r.total, 0)
             const totalCount = records.reduce((s, r) => s + r.count, 0)
             const thisMonth = records.find(r => r.month === currentMonth)
