@@ -1,50 +1,84 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 
 export default function Home() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null)
+  const [checking, setChecking] = useState(true)
   const router = useRouter()
 
   useEffect(() => {
     async function checkAuth() {
+      const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
         router.push('/dashboard')
       } else {
-        setIsAuthenticated(false)
+        setChecking(false)
       }
     }
-
     checkAuth()
   }, [router])
 
-  if (isAuthenticated === null) {
-    return <div className="min-h-screen bg-slate-900" />
+  if (checking) {
+    return (
+      <div style={{ minHeight: '100vh', background: '#0a0a0a' }} />
+    )
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-24 bg-gradient-to-br from-slate-900 to-slate-800">
-      <div className="text-center">
-        <h1 className="text-5xl font-bold text-white mb-4">MOV Gestão</h1>
-        <p className="text-xl text-slate-300 mb-8">Seu sistema de gestão para produtoras</p>
-        <div className="flex gap-4 justify-center">
-          <a
+    <div style={{ minHeight: '100vh', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'DM Sans', sans-serif" }}>
+      <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+
+      <div style={{ width: '100%', maxWidth: '400px', padding: '0 20px', textAlign: 'center' }}>
+        {/* Logo */}
+        <div style={{ marginBottom: '48px' }}>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '48px', color: '#e8c547', letterSpacing: '-2px', lineHeight: 1 }}>MOV</div>
+          <div style={{ fontSize: '11px', color: '#555', letterSpacing: '4px', textTransform: 'uppercase', marginTop: '8px' }}>Gestão · Produtora</div>
+        </div>
+
+        {/* Tagline */}
+        <div style={{ marginBottom: '40px' }}>
+          <p style={{ fontSize: '15px', color: '#888', lineHeight: 1.6 }}>
+            Gerencie projetos, clientes e finanças da sua produtora em um só lugar.
+          </p>
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <Link
             href="/login"
-            className="px-8 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
+            style={{
+              display: 'block', padding: '13px', background: '#e8c547', color: '#000',
+              fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '14px',
+              borderRadius: '8px', textDecoration: 'none', letterSpacing: '.3px',
+              transition: 'background .15s',
+            }}
           >
             Entrar
-          </a>
-          <a
+          </Link>
+          <Link
             href="/signup"
-            className="px-8 py-3 bg-slate-700 text-white rounded-lg font-semibold hover:bg-slate-600 transition"
+            style={{
+              display: 'block', padding: '13px',
+              background: 'transparent', color: '#f0ece4',
+              fontFamily: "'Syne', sans-serif", fontWeight: 600, fontSize: '14px',
+              borderRadius: '8px', textDecoration: 'none',
+              border: '1px solid #2a2a2a',
+              transition: 'border-color .15s',
+            }}
           >
-            Criar conta
-          </a>
+            Criar conta gratuita
+          </Link>
+        </div>
+
+        {/* Footer */}
+        <div style={{ marginTop: '48px', fontSize: '11px', color: '#333', letterSpacing: '0.5px' }}>
+          © {new Date().getFullYear()} MOV Gestão
         </div>
       </div>
-    </main>
+    </div>
   )
 }

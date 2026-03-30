@@ -1,10 +1,9 @@
-import { createServerClient } from './supabase'
+import { createClient } from './supabase/server'
 import { User } from './types'
 
 export async function getCurrentUser(): Promise<User | null> {
-  const supabase = createServerClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-
   if (!user) return null
 
   const { data: userData } = await supabase
@@ -20,7 +19,7 @@ export async function getCurrentCompany() {
   const user = await getCurrentUser()
   if (!user) return null
 
-  const supabase = createServerClient()
+  const supabase = await createClient()
   const { data: company } = await supabase
     .from('companies')
     .select('*')
@@ -38,10 +37,6 @@ export async function isAuthenticated(): Promise<boolean> {
 export async function hasRole(requiredRole: 'admin' | 'editor' | 'viewer'): Promise<boolean> {
   const user = await getCurrentUser()
   if (!user) return false
-
   const roles = ['viewer', 'editor', 'admin']
-  const userRoleIndex = roles.indexOf(user.role)
-  const requiredRoleIndex = roles.indexOf(requiredRole)
-
-  return userRoleIndex >= requiredRoleIndex
+  return roles.indexOf(user.role) >= roles.indexOf(requiredRole)
 }

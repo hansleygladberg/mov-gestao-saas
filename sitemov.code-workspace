@@ -1,0 +1,20 @@
+{
+	"folders": [
+		{
+			"path": "../sitemov"
+		},
+		{
+			"path": "../movGestao"
+		},
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"chat.tools.terminal.autoApprove": {
+			"printf": true,
+			"npm cache": true,
+			"npm config": true
+		}
+	}
+}

@@ -1,32 +1,55 @@
+import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function middleware(request: NextRequest) {
+  let supabaseResponse = NextResponse.next({ request })
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll()
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
+          )
+          supabaseResponse = NextResponse.next({ request })
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options)
+          )
+        },
+      },
+    }
+  )
+
+  const { data: { user } } = await supabase.auth.getUser()
+
   const { pathname } = request.nextUrl
 
-  // Rotas públicas e APIs públicas
-  const publicRoutes = [
-    '/',
-    '/login',
-    '/signup',
-    '/api/auth/signup',
-    '/api/auth/logout',
-    '/_next',
-    '/favicon.ico',
-  ]
+  const isPublicRoute =
+    pathname === '/' ||
+    pathname === '/login' ||
+    pathname === '/signup' ||
+    pathname.startsWith('/api/auth/') ||
+    pathname.startsWith('/_next') ||
+    pathname === '/favicon.ico'
 
-  if (publicRoutes.some(route => pathname.startsWith(route))) {
-    return NextResponse.next()
+  if (!user && !isPublicRoute) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/login'
+    return NextResponse.redirect(url)
   }
 
-  // Se não está em rota pública, precisa de autenticação
-  // Verifica se tem cookie de sessão
-  const hasSession = request.cookies.has('sb-rvgrabtlyjdyauuqugcw-auth-token')
-
-  if (!hasSession) {
-    return NextResponse.redirect(new URL('/login', request.url))
+  if (user && (pathname === '/login' || pathname === '/signup')) {
+    const url = request.nextUrl.clone()
+    url.pathname = '/dashboard'
+    return NextResponse.redirect(url)
   }
 
-  return NextResponse.next()
+  return supabaseResponse
 }
 
 export const config = {

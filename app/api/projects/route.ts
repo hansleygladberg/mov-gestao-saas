@@ -1,76 +1,44 @@
-import { createServerClient } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
-export async function GET(request: NextRequest) {
-  const supabase = createServerClient()
-
+async function getCompanyId(supabase: Awaited<ReturnType<typeof createClient>>) {
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  if (!user) return null
+  const { data } = await supabase.from('users').select('company_id').eq('id', user.id).single()
+  return data?.company_id || null
+}
 
-  const { data: userData } = await supabase
-    .from('users')
-    .select('company_id')
-    .eq('id', user.id)
-    .single()
-
-  if (!userData) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 })
-  }
-
-  const { data: projects, error } = await supabase
+export async function GET() {
+  const supabase = await createClient()
+  const companyId = await getCompanyId(supabase)
+  if (!companyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { data, error } = await supabase
     .from('projects')
-    .select('*')
-    .eq('company_id', userData.company_id)
+    .select('*, clients(name)')
+    .eq('company_id', companyId)
     .order('created_at', { ascending: false })
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-
-  return NextResponse.json(projects)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data)
 }
 
 export async function POST(request: NextRequest) {
-  const supabase = createServerClient()
+  const supabase = await createClient()
+  const companyId = await getCompanyId(supabase)
+  if (!companyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await request.json()
-
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const { data: userData } = await supabase
-    .from('users')
-    .select('company_id')
-    .eq('id', user.id)
-    .single()
-
-  if (!userData) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 })
-  }
-
-  const { data: project, error } = await supabase
-    .from('projects')
-    .insert([
-      {
-        company_id: userData.company_id,
-        name: body.name,
-        type: body.type,
-        status: body.status || 'orcamento',
-        value: body.value || 0,
-        delivery_date: body.delivery_date,
-        description: body.description,
-        progress: body.progress || 0,
-      },
-    ])
-    .select()
-    .single()
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 })
-  }
-
-  return NextResponse.json(project, { status: 201 })
+  const { data, error } = await supabase.from('projects').insert([{
+    company_id: companyId,
+    name: body.name,
+    type: body.type || null,
+    status: body.status || 'orcamento',
+    value: body.value || 0,
+    delivery_date: body.delivery_date || null,
+    description: body.description || null,
+    progress: body.progress || 0,
+    client_id: body.client_id || null,
+    data: body.data || {},
+    quote_token: crypto.randomUUID(),
+  }]).select('*, clients(name)').single()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json(data, { status: 201 })
 }

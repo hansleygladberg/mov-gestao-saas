@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 
@@ -16,84 +16,79 @@ export default function LoginPage() {
     e.preventDefault()
     setError('')
     setLoading(true)
-
     try {
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      })
-
-      if (authError) {
-        setError(authError.message)
-        return
-      }
-
-      if (data.user) {
-        router.push('/dashboard')
-      }
-    } catch (err) {
+      const supabase = createClient()
+      const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password })
+      if (authError) { setError(authError.message); return }
+      if (data.user) router.push('/dashboard')
+    } catch {
       setError('Erro ao fazer login. Tente novamente.')
-      console.error(err)
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
-      <div className="w-full max-w-md p-8 bg-gray-800 rounded-lg shadow-xl">
-        <h1 className="text-3xl font-bold text-white mb-2">MOV Gestão</h1>
-        <p className="text-gray-400 mb-8">Entre na sua conta</p>
+    <div style={{ minHeight: '100vh', background: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'DM Sans', sans-serif" }}>
+      <link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+      <div style={{ width: '100%', maxWidth: '400px', padding: '0 20px' }}>
+        {/* Logo */}
+        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 800, fontSize: '32px', color: '#e8c547', letterSpacing: '-1px' }}>MOV</div>
+          <div style={{ fontSize: '11px', color: '#555', letterSpacing: '3px', textTransform: 'uppercase', marginTop: '4px' }}>Gestão · Produtora</div>
+        </div>
 
-        {error && (
-          <div className="mb-4 p-4 bg-red-900/20 border border-red-700 rounded text-red-200">
-            {error}
-          </div>
-        )}
+        {/* Card */}
+        <div style={{ background: '#111', border: '1px solid #2a2a2a', borderRadius: '12px', padding: '32px' }}>
+          <h2 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '20px', color: '#f0ece4', marginBottom: '4px' }}>Bem-vindo de volta</h2>
+          <p style={{ fontSize: '13px', color: '#555', marginBottom: '28px' }}>Entre com sua conta para acessar o sistema</p>
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="seu@email.com"
-              className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-              required
-            />
-          </div>
+          {error && (
+            <div style={{ padding: '12px 14px', background: 'rgba(232,93,74,.1)', border: '1px solid rgba(232,93,74,.3)', borderRadius: '8px', color: '#e85d4a', fontSize: '13px', marginBottom: '20px' }}>
+              {error}
+            </div>
+          )}
 
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
-              Senha
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded text-white placeholder-gray-500 focus:outline-none focus:border-blue-500"
-              required
-            />
-          </div>
+          <form onSubmit={handleLogin}>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '12px', color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="seu@email.com"
+                required
+                style={{ width: '100%', padding: '10px 14px', background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: '8px', color: '#f0ece4', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
+                onFocus={e => e.target.style.borderColor = '#e8c547'}
+                onBlur={e => e.target.style.borderColor = '#2a2a2a'}
+              />
+            </div>
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ display: 'block', fontSize: '12px', color: '#888', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>Senha</label>
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                style={{ width: '100%', padding: '10px 14px', background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: '8px', color: '#f0ece4', fontSize: '14px', outline: 'none', boxSizing: 'border-box' }}
+                onFocus={e => e.target.style.borderColor = '#e8c547'}
+                onBlur={e => e.target.style.borderColor = '#2a2a2a'}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              style={{ width: '100%', padding: '11px', background: loading ? '#c9a92e' : '#e8c547', color: '#000', fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '14px', border: 'none', borderRadius: '8px', cursor: loading ? 'not-allowed' : 'pointer', transition: 'background .15s', letterSpacing: '.3px' }}
+            >
+              {loading ? 'Entrando...' : 'Entrar'}
+            </button>
+          </form>
+        </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded transition"
-          >
-            {loading ? 'Entrando...' : 'Entrar'}
-          </button>
-        </form>
-
-        <p className="mt-6 text-center text-gray-400">
+        <p style={{ textAlign: 'center', marginTop: '20px', fontSize: '13px', color: '#555' }}>
           Não tem conta?{' '}
-          <Link href="/signup" className="text-blue-400 hover:text-blue-300">
+          <Link href="/signup" style={{ color: '#e8c547', textDecoration: 'none', fontWeight: 500 }}>
             Cadastre-se
           </Link>
         </p>
