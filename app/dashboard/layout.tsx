@@ -261,6 +261,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <IDoc /> Orçamentos <Badge n={counts.quotes} />
             </Link>
           )}
+          {canView('projetos') && (
+            <Link href="/dashboard/contracts" className={on('/dashboard/contracts') ? '' : 'nav-link'} style={on('/dashboard/contracts') ? linkOn : linkOff}>
+              <IDoc /> Contratos
+            </Link>
+          )}
 
           <SectionLabel label="Sistema" />
           {canView('adm') && (
