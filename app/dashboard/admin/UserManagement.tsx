@@ -3,6 +3,16 @@
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 
+const PIPELINE_STAGES = [
+  { key: 'orcamento', label: 'Orçamento' },
+  { key: 'producao', label: 'Em Produção' },
+  { key: 'edicao', label: 'Edição' },
+  { key: 'aguardando_cliente', label: 'Aguard. Cliente' },
+  { key: 'revisao', label: 'Revisão' },
+  { key: 'aprovado', label: 'Aprovado' },
+  { key: 'finalizado', label: 'Finalizado' },
+]
+
 const MODULES = [
   { key: 'projetos', label: 'Projetos', icon: '🎬' },
   { key: 'clientes', label: 'Clientes', icon: '👥' },
@@ -36,8 +46,34 @@ interface UserData {
   name?: string
   role: string
   is_active?: boolean
-  permissions?: Record<string, Record<string, boolean>>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  permissions?: Record<string, any>
   created_at: string
+}
+
+function StageAccessGrid({ stages, onChange }: { stages: string[], onChange: (s: string[]) => void }) {
+  return (
+    <div style={{ background: '#1a1a1a', borderRadius: '8px', padding: '12px', marginBottom: '8px' }}>
+      <div style={{ fontSize: '11px', color: '#555', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>
+        Acesso por Etapa de Projeto
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+        {PIPELINE_STAGES.map(s => {
+          const active = stages.includes(s.key)
+          return (
+            <button key={s.key} type="button" onClick={() => {
+              onChange(active ? stages.filter(x => x !== s.key) : [...stages, s.key])
+            }} style={{ padding: '5px 12px', borderRadius: '20px', fontSize: '11px', fontWeight: 600, cursor: 'pointer', border: 'none', background: active ? 'rgba(93,184,122,.2)' : '#222', color: active ? '#5db87a' : '#555', transition: 'all .12s' }}>
+              {s.label}
+            </button>
+          )
+        })}
+      </div>
+      <p style={{ fontSize: '11px', color: '#444', lineHeight: 1.4, margin: 0 }}>
+        {stages.length === 0 ? '✓ Sem restrição — usuário vê todas as etapas' : `Restrito a ${stages.length} etapa${stages.length > 1 ? 's' : ''} selecionada${stages.length > 1 ? 's' : ''}`}
+      </p>
+    </div>
+  )
 }
 
 function PermGrid({ perms, onToggle }: { perms: Record<string, Record<string, boolean>>, onToggle: (m: string, a: string) => void }) {
@@ -75,6 +111,7 @@ export default function UserManagement({ initialUsers, companyId, currentUserId 
   const [users, setUsers] = useState<UserData[]>(initialUsers)
   const [showInvite, setShowInvite] = useState(false)
   const [editingUser, setEditingUser] = useState<UserData | null>(null)
+  const [editingStageAccess, setEditingStageAccess] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [toast, setToast] = useState('')
 
@@ -84,6 +121,7 @@ export default function UserManagement({ initialUsers, companyId, currentUserId 
   const [invitePassword, setInvitePassword] = useState('')
   const [inviteRole, setInviteRole] = useState('editor')
   const [invitePerms, setInvitePerms] = useState<Record<string, Record<string, boolean>>>(DEFAULT_PERMISSIONS)
+  const [inviteStageAccess, setInviteStageAccess] = useState<string[]>([])
 
   function showToast(msg: string) {
     setToast(msg)
@@ -122,7 +160,7 @@ export default function UserManagement({ initialUsers, companyId, currentUserId 
           password: invitePassword,
           role: inviteRole,
           companyId,
-          permissions: invitePerms,
+          permissions: { ...invitePerms, stageAccess: inviteStageAccess },
         }),
       })
       const data = await res.json()
@@ -135,6 +173,7 @@ export default function UserManagement({ initialUsers, companyId, currentUserId 
       setInvitePassword('')
       setInviteRole('editor')
       setInvitePerms(DEFAULT_PERMISSIONS)
+      setInviteStageAccess([])
 
       // Refresh users
       const supabase = createClient()
@@ -154,13 +193,15 @@ export default function UserManagement({ initialUsers, companyId, currentUserId 
       const supabase = createClient()
       const { error } = await supabase.from('users').update({
         role: editingUser.role,
-        permissions: editingUser.permissions,
+        permissions: { ...editingUser.permissions, stageAccess: editingStageAccess },
         is_active: editingUser.is_active,
       }).eq('id', editingUser.id)
 
       if (error) throw error
 
-      setUsers(prev => prev.map(u => u.id === editingUser.id ? editingUser : u))
+      setUsers(prev => prev.map(u => u.id === editingUser.id
+        ? { ...editingUser, permissions: { ...editingUser.permissions, stageAccess: editingStageAccess } }
+        : u))
       setEditingUser(null)
       showToast('✅ Permissões salvas!')
     } catch {
@@ -238,7 +279,10 @@ export default function UserManagement({ initialUsers, companyId, currentUserId 
               </span>
               {u.id !== currentUserId && (
                 <>
-                  <button onClick={() => setEditingUser({ ...u, permissions: u.permissions || DEFAULT_PERMISSIONS })} style={btnStyle('ghost')}>Permissões</button>
+                  <button onClick={() => {
+                    setEditingUser({ ...u, permissions: u.permissions || DEFAULT_PERMISSIONS })
+                    setEditingStageAccess(u.permissions?.stageAccess || [])
+                  }} style={btnStyle('ghost')}>Permissões</button>
                   <button onClick={() => toggleActive(u.id, u.is_active !== false)} style={btnStyle('ghost')} title={u.is_active !== false ? 'Desativar' : 'Ativar'}>
                     {u.is_active !== false ? '⏸' : '▶'}
                   </button>
@@ -255,7 +299,7 @@ export default function UserManagement({ initialUsers, companyId, currentUserId 
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div style={{ background: '#111', border: '1px solid #2a2a2a', borderRadius: '12px', width: '100%', maxWidth: '560px', maxHeight: '90vh', overflow: 'auto' }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: '#111', zIndex: 1 }}>
-              <h3 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '16px', color: '#f0ece4' }}>Criar novo usuário</h3>
+              <h3 style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: '16px', color: '#f0ece4' }}>Criar novo usuário</h3>
               <button onClick={() => setShowInvite(false)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', fontSize: '18px' }}>×</button>
             </div>
             <form onSubmit={handleInvite} style={{ padding: '24px' }}>
@@ -284,9 +328,12 @@ export default function UserManagement({ initialUsers, companyId, currentUserId 
                 <label style={{ display: 'block', fontSize: '11px', color: '#555', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>Senha inicial</label>
                 <input style={inputStyle} type="password" value={invitePassword} onChange={e => setInvitePassword(e.target.value)} placeholder="Mínimo 6 caracteres" minLength={6} required />
               </div>
-              <div style={{ marginBottom: '20px' }}>
+              <div style={{ marginBottom: '16px' }}>
                 <label style={{ display: 'block', fontSize: '11px', color: '#555', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>Permissões por módulo</label>
                 <PermGrid perms={invitePerms} onToggle={togglePerm} />
+              </div>
+              <div style={{ marginBottom: '20px' }}>
+                <StageAccessGrid stages={inviteStageAccess} onChange={setInviteStageAccess} />
               </div>
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                 <button type="button" onClick={() => setShowInvite(false)} style={btnStyle('ghost')}>Cancelar</button>
@@ -302,7 +349,7 @@ export default function UserManagement({ initialUsers, companyId, currentUserId 
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div style={{ background: '#111', border: '1px solid #2a2a2a', borderRadius: '12px', width: '100%', maxWidth: '560px', maxHeight: '90vh', overflow: 'auto' }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, background: '#111', zIndex: 1 }}>
-              <h3 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '16px', color: '#f0ece4' }}>Editar permissões — {editingUser.name || editingUser.email}</h3>
+              <h3 style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: '16px', color: '#f0ece4' }}>Editar permissões — {editingUser.name || editingUser.email}</h3>
               <button onClick={() => setEditingUser(null)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', fontSize: '18px' }}>×</button>
             </div>
             <div style={{ padding: '24px' }}>
@@ -328,6 +375,9 @@ export default function UserManagement({ initialUsers, companyId, currentUserId 
               </div>
               <label style={{ display: 'block', fontSize: '11px', color: '#555', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>Permissões por módulo</label>
               <PermGrid perms={editingUser.permissions || DEFAULT_PERMISSIONS} onToggle={toggleEditPerm} />
+              <div style={{ marginTop: '16px' }}>
+                <StageAccessGrid stages={editingStageAccess} onChange={setEditingStageAccess} />
+              </div>
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '20px' }}>
                 <button onClick={() => setEditingUser(null)} style={btnStyle('ghost')}>Cancelar</button>
                 <button onClick={handleSavePermissions} disabled={loading} style={btnStyle('primary')}>{loading ? 'Salvando...' : 'Salvar'}</button>

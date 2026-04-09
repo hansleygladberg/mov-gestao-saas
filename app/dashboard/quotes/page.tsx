@@ -22,11 +22,17 @@ export default function QuotesPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState<'orcamentos' | 'contratos' | 'aprovacao'>('orcamentos')
+  const [search, setSearch] = useState('')
+  const [filterStatus, setFilterStatus] = useState('todos')
+  const [showArchived, setShowArchived] = useState(false)
+  const [hoveredRow, setHoveredRow] = useState<string | null>(null)
 
   // New client mini-modal
   const [showClientModal, setShowClientModal] = useState(false)
   const [clientForm, setClientForm] = useState({ name: '', email: '', whatsapp: '' })
   const [savingClient, setSavingClient] = useState(false)
+
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -67,72 +73,293 @@ export default function QuotesPage() {
     finally { setSavingClient(false) }
   }
 
-  if (loading) return <div style={{ padding: '40px', color: '#555', textAlign: 'center', background: '#0d0f12', minHeight: '100vh' }}>Carregando...</div>
+  if (loading) return <div style={{ padding: '40px', color: '#555', textAlign: 'center', background: '#0a0a0a', minHeight: '100vh', fontFamily: "'Montserrat', sans-serif" }}>Carregando...</div>
 
-  const pending = projects.filter(p => p.status === 'orcamento')
-  const rejected = projects.filter(p => p.status === 'orcamento_desaprovado')
-  const totalPending = pending.reduce((s, p) => s + p.value, 0)
+  // Metrics
+  const drafts = projects.filter(p => p.status === 'orcamento')
+  const sent = projects.filter(p => p.quote_token)
+  const approved = projects.filter(p => p.status !== 'orcamento' && p.status !== 'orcamento_desaprovado')
+  const totalValue = projects.reduce((s, p) => s + p.value, 0)
+
+  // Filtered projects
+  const visibleProjects = projects.filter(p => {
+    if (!showArchived && p.status === 'orcamento_desaprovado') return false
+    if (filterStatus === 'aguardando' && p.status !== 'orcamento') return false
+    if (filterStatus === 'reprovados' && p.status !== 'orcamento_desaprovado') return false
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      const clientName = p.clients?.name?.toLowerCase() || ''
+      if (!p.name.toLowerCase().includes(q) && !clientName.includes(q) && !p.id.toLowerCase().includes(q)) return false
+    }
+    return true
+  })
+
+  const labelStyle: React.CSSProperties = { fontSize: '11px', textTransform: 'uppercase', color: '#555555', letterSpacing: '1px', marginBottom: '6px', display: 'block' }
+  const metricValueStyle: React.CSSProperties = { fontSize: '28px', fontWeight: 700, color: '#f0ece4', lineHeight: 1 }
 
   return (
-    <div style={{ fontFamily: "'DM Sans', sans-serif", background: '#0d0f12', minHeight: '100vh', padding: '28px' }}>
+    <div style={{ fontFamily: "'Montserrat', sans-serif", background: '#0a0a0a', minHeight: '100vh', padding: '28px' }}>
 
+      {/* Page Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px' }}>
         <div>
-          <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: '26px', fontWeight: 700, color: '#f0ece4', marginBottom: '4px' }}>Orçamentos</h1>
-          <p style={{ color: '#4b5563', fontSize: '13px' }}>{pending.length} aguardando aprovação · {fv(totalPending)} em aberto</p>
+          <h1 style={{ fontFamily: "'Montserrat', sans-serif", fontSize: '26px', fontWeight: 700, color: '#f0ece4', marginBottom: '4px', margin: '0 0 4px 0' }}>
+            Gestão de Orçamentos
+          </h1>
+          <p style={{ color: '#555555', fontSize: '13px', margin: 0 }}>Gerencie todos os seus orçamentos em um só lugar</p>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
-          <button onClick={() => setShowClientModal(true)} style={btnS('ghost')}>+ Novo Cliente</button>
-          <a href="/dashboard/projects" style={{ ...btnS('primary'), textDecoration: 'none' }}>+ Novo Orçamento</a>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button
+            onClick={() => toast.show('Em breve', 'info')}
+            style={btnS('ghost')}
+          >
+            📋 Contrato
+          </button>
+          <button
+            onClick={() => { window.location.href = '/dashboard/projects?new=1' }}
+            style={btnS('primary')}
+          >
+            + Novo Orçamento
+          </button>
         </div>
       </div>
 
-      {/* Clientes disponíveis */}
-      {clients.length > 0 && (
-        <div style={{ background: '#111318', border: '1px solid #1f2229', borderRadius: '10px', padding: '14px 20px', marginBottom: '20px', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '11px', color: '#4b5563', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginRight: '4px' }}>Clientes:</span>
-          {clients.slice(0, 8).map(c => (
-            <span key={c.id} style={{ fontSize: '12px', padding: '3px 10px', background: '#1a1d24', border: '1px solid #2a2d35', borderRadius: '20px', color: '#9ca3af' }}>{c.name}</span>
-          ))}
-          {clients.length > 8 && <span style={{ fontSize: '12px', color: '#4b5563' }}>+{clients.length - 8} mais</span>}
-        </div>
-      )}
+      {/* Tab Navigation */}
+      <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid #2a2d35', marginBottom: '24px' }}>
+        {([
+          { key: 'orcamentos', label: 'Orçamentos' },
+          { key: 'contratos', label: 'Contratos' },
+          { key: 'aprovacao', label: 'Página de Aprovação' },
+        ] as const).map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => {
+              if (tab.key !== 'orcamentos') {
+                toast.show('Em breve', 'info')
+              } else {
+                setActiveTab(tab.key)
+              }
+            }}
+            style={{
+              padding: '10px 20px',
+              background: 'none',
+              border: 'none',
+              borderBottom: activeTab === tab.key ? '2px solid #e8c547' : '2px solid transparent',
+              color: activeTab === tab.key ? '#f0ece4' : '#555555',
+              fontSize: '13px',
+              fontWeight: activeTab === tab.key ? 600 : 400,
+              cursor: 'pointer',
+              marginBottom: '-1px',
+              fontFamily: "'Montserrat', sans-serif",
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-      {projects.length === 0 ? (
+      {/* Metric Cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '24px' }}>
+        {[
+          { label: 'Rascunhos', value: drafts.length.toString(), color: '#f0ece4' },
+          { label: 'Enviados', value: sent.length.toString(), color: '#f0ece4' },
+          { label: 'Aprovados', value: approved.length.toString(), color: '#f0ece4' },
+          { label: 'Valor Total', value: fv(totalValue), color: '#e8c547' },
+        ].map(card => (
+          <div
+            key={card.label}
+            style={{ background: '#111111', border: '1px solid #2a2d35', borderRadius: '12px', padding: '16px 20px' }}
+          >
+            <span style={labelStyle}>{card.label}</span>
+            <span style={{ ...metricValueStyle, color: card.color }}>{card.value}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Search and Filters */}
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '16px', alignItems: 'center' }}>
+        <div style={{ flex: 1, position: 'relative' }}>
+          <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '14px', pointerEvents: 'none' }}>🔍</span>
+          <input
+            type="text"
+            placeholder="Buscar por título, número ou cliente..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ ...inp, paddingLeft: '36px' }}
+          />
+        </div>
+        <select
+          value={filterStatus}
+          onChange={e => setFilterStatus(e.target.value)}
+          style={{ ...inp, width: 'auto', cursor: 'pointer', paddingRight: '32px' }}
+        >
+          <option value="todos">Todos</option>
+          <option value="aguardando">Aguardando</option>
+          <option value="reprovados">Reprovados</option>
+        </select>
+        <button
+          onClick={() => setShowArchived(v => !v)}
+          style={{
+            ...btnS('ghost'),
+            background: showArchived ? 'rgba(232,197,71,.08)' : 'transparent',
+            borderColor: showArchived ? 'rgba(232,197,71,.3)' : '#2a2d35',
+            color: showArchived ? '#e8c547' : '#6b7280',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          📁 Arquivados
+        </button>
+      </div>
+
+      {/* Orçamentos Table */}
+      {visibleProjects.length === 0 ? (
         <EmptyState
-          icon="📄"
-          title="Nenhum orçamento em aberto"
+          icon="📋"
+          title="Nenhum orçamento encontrado"
           subtitle='Crie um projeto com status "Orçamento" para que ele apareça aqui.'
           action="+ Criar orçamento"
           onAction={() => { window.location.href = '/dashboard/projects' }}
         />
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-          {pending.length > 0 && (
-            <div>
-              <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: '13px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '12px' }}>Aguardando aprovação</h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {pending.map(p => <QuoteCard key={p.id} project={p} onDelete={handleDelete} onCopyLink={copyLink} />)}
-              </div>
-            </div>
-          )}
-          {rejected.length > 0 && (
-            <div>
-              <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: '13px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '12px' }}>Reprovados</h2>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {rejected.map(p => <QuoteCard key={p.id} project={p} onDelete={handleDelete} onCopyLink={copyLink} />)}
-              </div>
-            </div>
-          )}
+        <div style={{ background: '#111111', border: '1px solid #2a2d35', borderRadius: '12px', overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ background: '#0d0f12' }}>
+                {['Número', 'Título', 'Cliente', 'Valor', 'Status', 'Data', 'Validade', 'Ações'].map(col => (
+                  <th key={col} style={{ padding: '12px 16px', textAlign: 'left', fontSize: '11px', textTransform: 'uppercase' as const, color: '#555555', letterSpacing: '1px', fontWeight: 600, whiteSpace: 'nowrap' as const }}>
+                    {col}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {visibleProjects.map((p, i) => {
+                const isHovered = hoveredRow === p.id
+                const clientObj = p.clients ?? clients.find(c => c.id === (p as unknown as Record<string, string>).client_id)
+                const statusBadge = p.status === 'orcamento'
+                  ? { label: 'Aguardando', color: '#5b9bd5' }
+                  : p.status === 'orcamento_desaprovado'
+                    ? { label: 'Reprovado', color: '#e85d4a' }
+                    : { label: 'Aprovado', color: '#5db87a' }
+                const orcNum = `ORC-${p.id.slice(0, 8).toUpperCase()}`
+
+                return (
+                  <tr
+                    key={p.id}
+                    onMouseEnter={() => setHoveredRow(p.id)}
+                    onMouseLeave={() => setHoveredRow(null)}
+                    style={{
+                      borderTop: i > 0 ? '1px solid #1a1d24' : 'none',
+                      background: isHovered ? '#161920' : 'transparent',
+                      transition: 'background 0.15s',
+                    }}
+                  >
+                    {/* Número */}
+                    <td style={{ padding: '14px 16px', fontSize: '11px', color: '#555555', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
+                      {orcNum}
+                    </td>
+
+                    {/* Título */}
+                    <td style={{ padding: '14px 16px', maxWidth: '200px' }}>
+                      <span style={{ fontSize: '13px', color: '#f0ece4', fontWeight: 600, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {p.name}
+                      </span>
+                      {p.type && <span style={{ fontSize: '11px', color: '#555555' }}>{p.type}</span>}
+                    </td>
+
+                    {/* Cliente */}
+                    <td style={{ padding: '14px 16px' }}>
+                      {clientObj ? (
+                        <>
+                          <span style={{ fontSize: '13px', color: '#f0ece4', display: 'block' }}>{clientObj.name}</span>
+                          {clientObj.email && <span style={{ fontSize: '11px', color: '#555555' }}>{clientObj.email}</span>}
+                        </>
+                      ) : (
+                        <span style={{ fontSize: '13px', color: '#555555' }}>—</span>
+                      )}
+                    </td>
+
+                    {/* Valor */}
+                    <td style={{ padding: '14px 16px', whiteSpace: 'nowrap' }}>
+                      <span style={{ fontSize: '13px', color: '#e8c547', fontWeight: 600 }}>{fv(p.value)}</span>
+                    </td>
+
+                    {/* Status */}
+                    <td style={{ padding: '14px 16px' }}>
+                      <span style={{
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        background: statusBadge.color + '22',
+                        color: statusBadge.color,
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {statusBadge.label}
+                      </span>
+                    </td>
+
+                    {/* Data */}
+                    <td style={{ padding: '14px 16px', fontSize: '12px', color: '#6b7280', whiteSpace: 'nowrap' }}>
+                      {fd(p.created_at)}
+                    </td>
+
+                    {/* Validade */}
+                    <td style={{ padding: '14px 16px', fontSize: '12px', color: '#6b7280', whiteSpace: 'nowrap' }}>
+                      {p.delivery_date ? fd(p.delivery_date) : '—'}
+                    </td>
+
+                    {/* Ações */}
+                    <td style={{ padding: '14px 16px' }}>
+                      <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+                        {p.quote_token && (
+                          <>
+                            <button
+                              onClick={() => copyLink(p.quote_token!)}
+                              title="Copiar link de aprovação"
+                              style={{ padding: '5px 8px', background: 'rgba(232,197,71,.08)', border: '1px solid rgba(232,197,71,.2)', borderRadius: '6px', color: '#e8c547', fontSize: '12px', cursor: 'pointer' }}
+                            >
+                              🔗
+                            </button>
+                            <button
+                              onClick={() => window.open(`/orcamento/${p.quote_token}`, '_blank')}
+                              title="Ver PDF"
+                              style={{ padding: '5px 8px', background: 'rgba(91,155,213,.08)', border: '1px solid rgba(91,155,213,.2)', borderRadius: '6px', color: '#5b9bd5', fontSize: '12px', cursor: 'pointer' }}
+                            >
+                              📄
+                            </button>
+                          </>
+                        )}
+                        <button
+                          onClick={() => { window.location.href = `/dashboard/projects` }}
+                          title="Editar"
+                          style={{ padding: '5px 8px', background: 'transparent', border: '1px solid #2a2d35', borderRadius: '6px', color: '#6b7280', fontSize: '12px', cursor: 'pointer' }}
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => handleDelete(p.id)}
+                          title="Excluir"
+                          style={{ padding: '5px 8px', background: 'rgba(232,93,74,.08)', border: '1px solid rgba(232,93,74,.15)', borderRadius: '6px', color: '#e85d4a', fontSize: '12px', cursor: 'pointer' }}
+                        >
+                          🗑
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
       {/* Mini-modal novo cliente */}
       {showClientModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div style={{ background: '#111318', border: '1px solid #1f2229', borderRadius: '12px', width: '100%', maxWidth: '400px' }}>
-            <div style={{ padding: '18px 24px', borderBottom: '1px solid #1f2229', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '16px', color: '#f0ece4' }}>Novo Cliente</h3>
+          <div style={{ background: '#111111', border: '1px solid #2a2d35', borderRadius: '12px', width: '100%', maxWidth: '400px' }}>
+            <div style={{ padding: '18px 24px', borderBottom: '1px solid #2a2d35', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: '16px', color: '#f0ece4', margin: 0 }}>Novo Cliente</h3>
               <button onClick={() => setShowClientModal(false)} style={{ background: 'none', border: 'none', color: '#4b5563', cursor: 'pointer', fontSize: '20px' }}>×</button>
             </div>
             <div style={{ padding: '20px 24px' }}>
@@ -154,51 +381,6 @@ export default function QuotesPage() {
           </div>
         </div>
       )}
-    </div>
-  )
-}
-
-function QuoteCard({ project: p, onDelete, onCopyLink }: { project: Project; onDelete: (id: string) => void; onCopyLink: (token: string) => void }) {
-  const isRejected = p.status === 'orcamento_desaprovado'
-  return (
-    <div style={{ background: '#111318', border: `1px solid ${isRejected ? 'rgba(232,93,74,.15)' : '#1f2229'}`, borderRadius: '10px', padding: '18px 20px' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
-        <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: isRejected ? '#e85d4a' : '#5b9bd5', flexShrink: 0, marginTop: '5px' }} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '15px', fontWeight: 700, color: '#f0ece4', marginBottom: '4px' }}>{p.name}</div>
-          <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '10px' }}>
-            {p.clients?.name && <span>👤 {p.clients.name} · </span>}
-            {p.type && <span>{p.type} · </span>}
-            {p.delivery_date && <span>📅 {fd(p.delivery_date)}</span>}
-          </div>
-          {p.description && <p style={{ fontSize: '12px', color: '#4b5563', marginBottom: '12px', lineHeight: 1.5 }}>{p.description}</p>}
-
-          {/* Link de aprovação */}
-          {p.quote_token && !isRejected && (
-            <div style={{ background: '#1a1d24', border: '1px solid #2a2d35', borderRadius: '8px', padding: '10px 14px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: '10px', color: '#4b5563', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '2px' }}>Link de aprovação</div>
-                <div style={{ fontSize: '11px', color: '#6b7280', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {typeof window !== 'undefined' ? `${window.location.origin}/orcamento/${p.quote_token}` : `/orcamento/${p.quote_token}`}
-                </div>
-              </div>
-              <button onClick={() => onCopyLink(p.quote_token!)} style={{ padding: '6px 12px', background: 'rgba(232,197,71,.1)', border: '1px solid rgba(232,197,71,.2)', borderRadius: '6px', color: '#e8c547', fontSize: '11px', fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
-                🔗 Copiar
-              </button>
-            </div>
-          )}
-
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontFamily: "'Syne', sans-serif", fontSize: '18px', fontWeight: 800, color: '#f0ece4' }}>{fv(p.value)}</span>
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <span style={{ fontSize: '10px', fontWeight: 700, padding: '4px 10px', borderRadius: '6px', background: isRejected ? 'rgba(232,93,74,.12)' : 'rgba(91,155,213,.12)', color: isRejected ? '#e85d4a' : '#5b9bd5' }}>
-                {isRejected ? 'REPROVADO' : 'AGUARDANDO'}
-              </span>
-              <button onClick={() => onDelete(p.id)} style={{ padding: '4px 10px', background: 'rgba(232,93,74,.08)', border: '1px solid rgba(232,93,74,.15)', borderRadius: '6px', color: '#e85d4a', fontSize: '12px', cursor: 'pointer' }}>🗑</button>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   )
 }

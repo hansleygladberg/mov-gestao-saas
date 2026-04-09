@@ -8,6 +8,7 @@ interface Settings {
   segmentos: string[]
   categoriasFinanceiras: string[]
   categoriasCusto: string[]
+  statusProjeto: string[]
 }
 
 const DEFAULT: Settings = {
@@ -16,6 +17,7 @@ const DEFAULT: Settings = {
   segmentos: ['Saúde', 'Advocacia', 'Educação', 'Eventos', 'Governo', 'Corporativo', 'Casamento', 'Gastronomia', 'Fitness', 'Outro'],
   categoriasFinanceiras: ['Projeto', 'Equipamento', 'Freelancer', 'Software', 'Transporte', 'Alimentação', 'Estacionamento', 'Aluguel Equipamento', 'Marketing', 'Outro'],
   categoriasCusto: ['Freela', 'Transporte', 'Estacionamento', 'Alimentação', 'Equipamento', 'Locação', 'Outro'],
+  statusProjeto: ['Orçamento', 'Em Produção', 'Edição', 'Aguardando Cliente', 'Revisão', 'Aprovado', 'Finalizado'],
 }
 
 const inp: React.CSSProperties = {
@@ -39,7 +41,7 @@ function TagList({
 
   return (
     <div style={{ background: '#111318', border: '1px solid #1f2229', borderRadius: '10px', padding: '20px', marginBottom: '12px' }}>
-      <h3 style={{ fontFamily: "'Syne', sans-serif", fontSize: '14px', fontWeight: 600, color: '#f0ece4', marginBottom: '14px' }}>{title}</h3>
+      <h3 style={{ fontFamily: "'Montserrat', sans-serif", fontSize: '14px', fontWeight: 600, color: '#f0ece4', marginBottom: '14px' }}>{title}</h3>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '14px' }}>
         {items.map(item => (
           <span key={item} style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '4px 10px', background: '#1a1d24', border: '1px solid #2a2d35', borderRadius: '20px', fontSize: '12px', color: '#d1d5db', fontWeight: 500 }}>
@@ -97,13 +99,13 @@ export default function CompanySettings() {
   }
 
   function addItem(key: keyof Settings, value: string) {
-    const updated = { ...settings, [key]: [...settings[key], value] }
+    const updated = { ...settings, [key]: [...(settings[key] as string[]), value] }
     setSettings(updated)
     save(updated)
   }
 
   function removeItem(key: keyof Settings, value: string) {
-    const updated = { ...settings, [key]: settings[key].filter(i => i !== value) }
+    const updated = { ...settings, [key]: (settings[key] as string[]).filter(i => i !== value) }
     setSettings(updated)
     save(updated)
   }
@@ -152,6 +154,13 @@ export default function CompanySettings() {
         placeholder="Nova categoria..."
         onAdd={v => addItem('categoriasCusto', v)}
         onRemove={v => removeItem('categoriasCusto', v)}
+      />
+      <TagList
+        title="Status do Projeto (Pipeline)"
+        items={settings.statusProjeto}
+        placeholder="Novo status..."
+        onAdd={v => addItem('statusProjeto', v)}
+        onRemove={v => removeItem('statusProjeto', v)}
       />
     </div>
   )

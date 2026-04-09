@@ -87,7 +87,7 @@ export default function FreelancerManagement() {
         <div style={{ background: '#111', border: '1px solid #2a2a2a', borderRadius: '10px', overflow: 'hidden' }}>
           {freelancers.map((f, i) => (
             <div key={f.id} style={{ display: 'flex', alignItems: 'center', padding: '14px 20px', borderBottom: i < freelancers.length - 1 ? '1px solid #1a1a1a' : 'none', gap: '12px' }}>
-              <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700, color: '#e8c547', flexShrink: 0, fontFamily: "'Syne', sans-serif" }}>
+              <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#1a1a1a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', fontWeight: 700, color: '#e8c547', flexShrink: 0, fontFamily: "'Montserrat', sans-serif" }}>
                 {f.name[0].toUpperCase()}
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
@@ -116,7 +116,7 @@ export default function FreelancerManagement() {
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
           <div style={{ background: '#111', border: '1px solid #2a2a2a', borderRadius: '12px', width: '100%', maxWidth: '480px', maxHeight: '90vh', overflow: 'auto' }}>
             <div style={{ padding: '20px 24px', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '16px', color: '#f0ece4' }}>{editing ? 'Editar Freelancer' : 'Novo Freelancer'}</h3>
+              <h3 style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: '16px', color: '#f0ece4' }}>{editing ? 'Editar Freelancer' : 'Novo Freelancer'}</h3>
               <button onClick={() => setShowModal(false)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', fontSize: '20px' }}>×</button>
             </div>
             <div style={{ padding: '24px' }}>

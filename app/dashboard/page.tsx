@@ -19,6 +19,7 @@ const ST: Record<string, { label: string; color: string }> = {
 interface Project {
   id: string; name: string; type?: string; status: string; value: number
   delivery_date?: string; progress: number; client_id?: string
+  created_at: string
   data?: { custos?: { v: number }[]; pgtos?: { v: number; rec: boolean }[]; diarias?: { desc: string; qtd: number }[]; freeIds?: string[] }
   clients?: { name: string } | null
 }
@@ -66,12 +67,10 @@ export default function DashboardPage() {
   }
 
   async function approveProject(id: string) {
-    await fetch(`/api/projects/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'para_captacao' }),
-    })
-    setProjects(p => p.map(x => x.id === id ? { ...x, status: 'para_captacao' } : x))
+    const res = await fetch(`/api/projects/${id}/approve`, { method: 'POST' })
+    if (res.ok) {
+      setProjects(p => p.map(x => x.id === id ? { ...x, status: 'producao' } : x))
+    }
   }
 
   if (loading) return (
@@ -97,12 +96,16 @@ export default function DashboardPage() {
     .filter(t => t.type === 'apag' && t.transaction_date)
     .filter(t => { const [y, m] = (t.transaction_date as string).split('-'); return Number(y) === nowYear && Number(m) === nowMonth })
     .reduce((s, t) => s + Number(t.value), 0)
+  const newThisMonth = projects.filter(p => {
+    const d = new Date(p.created_at)
+    return d.getFullYear() === nowYear && d.getMonth() + 1 === nowMonth
+  }).length
 
   const upcomingEvents = events.filter(e => e.event_date >= today).slice(0, 5)
   const recentProjects = [...projects].sort((a, b) => 0).slice(0, 6)
 
   return (
-    <div style={{ fontFamily: "'DM Sans', sans-serif", background: '#0d0f12', minHeight: '100vh' }}>
+    <div style={{ fontFamily: "'Montserrat', sans-serif", background: '#0d0f12', minHeight: '100vh' }}>
       {/* Alert bar */}
       {urgentProjects.length > 0 && (
         <div style={{ background: 'rgba(232,197,71,.12)', borderBottom: '1px solid rgba(232,197,71,.2)', padding: '10px 28px', display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -117,84 +120,93 @@ export default function DashboardPage() {
       {/* Header */}
       <div style={{ padding: '24px 28px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
-          <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: '28px', fontWeight: 700, color: '#f0ece4', marginBottom: '2px' }}>Dashboard</h1>
+          <h1 style={{ fontFamily: "'Montserrat', sans-serif", fontSize: '28px', fontWeight: 700, color: '#f0ece4', marginBottom: '2px' }}>Dashboard</h1>
           <p style={{ color: '#4b5563', fontSize: '13px' }}>{companyName}</p>
         </div>
       </div>
 
       <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {/* KPIs */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px' }}>
           {[
             { label: 'PROJETOS ATIVOS', value: activeProjects.length.toString(), sub: `${projects.filter(p => p.status === 'entregue').length} entregues`, color: '#e8c547' },
             { label: 'PROJETOS PENDENTES', value: pendingProjects.length.toString(), sub: `${quoteProjects.length} orçamento${quoteProjects.length !== 1 ? 's' : ''} aberto${quoteProjects.length !== 1 ? 's' : ''}`, color: '#5b9bd5' },
+            { label: 'NOVOS ESTE MÊS', value: newThisMonth.toString(), sub: 'projetos criados no mês', color: '#9b8fd5' },
             { label: 'A RECEBER', value: fv(totalPending), sub: 'pendente', color: '#e8924a' },
             { label: 'A PAGAR MÊS', value: fv(aPagarMes), sub: aPagarMes > 0 ? 'contas pendentes' : 'sem pendências', color: aPagarMes > 0 ? '#e8924a' : '#5db87a' },
           ].map(k => (
             <div key={k.label} style={{ background: '#111318', border: '1px solid #1f2229', borderRadius: '10px', padding: '18px 20px' }}>
               <div style={{ fontSize: '10px', fontWeight: 700, color: '#4b5563', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '10px' }}>{k.label}</div>
-              <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '28px', fontWeight: 700, color: k.color, lineHeight: 1 }}>{k.value}</div>
+              <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: '28px', fontWeight: 700, color: k.color, lineHeight: 1 }}>{k.value}</div>
               <div style={{ fontSize: '11px', color: '#4b5563', marginTop: '4px' }}>{k.sub}</div>
             </div>
           ))}
         </div>
 
-        {/* Orçamentos aguardando aprovação */}
-        {quoteProjects.length > 0 && (
+        {/* Orçamentos + Próximos eventos — lado a lado no desktop */}
+        <style>{`@media(max-width:767px){.dash-side-grid{grid-template-columns:1fr!important}}`}</style>
+        <div className="dash-side-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', alignItems: 'start' }}>
+
+          {/* Orçamentos aguardando aprovação */}
           <div style={{ background: '#111318', border: '1px solid #1f2229', borderRadius: '10px', padding: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-              <h3 style={{ fontFamily: "'Syne', sans-serif", fontSize: '14px', fontWeight: 600, color: '#f0ece4', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span>📋</span> Orçamentos aguardando aprovação
+              <h3 style={{ fontFamily: "'Montserrat', sans-serif", fontSize: '14px', fontWeight: 600, color: '#f0ece4', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                <span>📋</span> Orçamentos
                 <span style={{ background: '#5b9bd5', color: '#000', fontSize: '10px', fontWeight: 700, padding: '1px 7px', borderRadius: '20px' }}>{quoteProjects.length}</span>
               </h3>
               <a href="/dashboard/projects" style={{ fontSize: '12px', color: '#e8c547', textDecoration: 'none' }}>Ver todos →</a>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {quoteProjects.slice(0, 5).map(p => (
-                <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', background: '#0d0f12', borderRadius: '8px', border: '1px solid #1f2229' }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: '13px', color: '#f0ece4', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-                    <div style={{ fontSize: '11px', color: '#4b5563', marginTop: '2px' }}>{p.clients?.name || '—'} · {fv(p.value)}</div>
+            {quoteProjects.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px', color: '#4b5563', fontSize: '13px' }}>Nenhum orçamento pendente.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {quoteProjects.slice(0, 5).map(p => (
+                  <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 12px', background: '#0d0f12', borderRadius: '8px', border: '1px solid #1f2229' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '13px', color: '#f0ece4', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+                      <div style={{ fontSize: '11px', color: '#4b5563', marginTop: '2px' }}>{p.clients?.name || '—'} · {fv(p.value)}</div>
+                    </div>
+                    <button
+                      onClick={() => approveProject(p.id)}
+                      style={{ padding: '5px 14px', background: 'rgba(93,184,122,.15)', border: '1px solid rgba(93,184,122,.3)', borderRadius: '6px', color: '#5db87a', fontSize: '12px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' as const }}>
+                      ✓ Aprovar
+                    </button>
                   </div>
-                  <button
-                    onClick={() => approveProject(p.id)}
-                    style={{ padding: '5px 14px', background: 'rgba(93,184,122,.15)', border: '1px solid rgba(93,184,122,.3)', borderRadius: '6px', color: '#5db87a', fontSize: '12px', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' as const }}>
-                    ✓ Aprovar
-                  </button>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
-        )}
 
-        {/* Próximos eventos */}
-        <div style={{ background: '#111318', border: '1px solid #1f2229', borderRadius: '10px', padding: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h3 style={{ fontFamily: "'Syne', sans-serif", fontSize: '14px', fontWeight: 600, color: '#f0ece4', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>📅</span> Próximos eventos
-            </h3>
-            <Link href="/dashboard/events" style={{ fontSize: '12px', color: '#e8c547', textDecoration: 'none' }}>Ver calendário →</Link>
-          </div>
-          {upcomingEvents.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '24px', color: '#4b5563', fontSize: '13px' }}>Nenhum evento previsto.</div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {upcomingEvents.map(ev => (
-                <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 0', borderBottom: '1px solid #1f2229' }}>
-                  <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: TYPE_COLOR[ev.event_type] || '#555', flexShrink: 0 }} />
-                  <span style={{ fontSize: '13px', color: '#d1d5db', flex: 1 }}>{ev.title}</span>
-                  <span style={{ fontSize: '11px', color: '#4b5563' }}>{fd(ev.event_date)}</span>
-                  <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '20px', background: (TYPE_COLOR[ev.event_type] || '#555') + '22', color: TYPE_COLOR[ev.event_type] || '#555', fontWeight: 600 }}>{TYPE_LABEL[ev.event_type] || ev.event_type}</span>
-                </div>
-              ))}
+          {/* Próximos eventos */}
+          <div style={{ background: '#111318', border: '1px solid #1f2229', borderRadius: '10px', padding: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ fontFamily: "'Montserrat', sans-serif", fontSize: '14px', fontWeight: 600, color: '#f0ece4', display: 'flex', alignItems: 'center', gap: '8px', margin: 0 }}>
+                <span>📅</span> Próximos eventos
+              </h3>
+              <Link href="/dashboard/events" style={{ fontSize: '12px', color: '#e8c547', textDecoration: 'none' }}>Ver calendário →</Link>
             </div>
-          )}
+            {upcomingEvents.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '24px', color: '#4b5563', fontSize: '13px' }}>Nenhum evento previsto.</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {upcomingEvents.map(ev => (
+                  <div key={ev.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '8px 0', borderBottom: '1px solid #1f2229' }}>
+                    <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: TYPE_COLOR[ev.event_type] || '#555', flexShrink: 0 }} />
+                    <span style={{ fontSize: '13px', color: '#d1d5db', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.title}</span>
+                    <span style={{ fontSize: '11px', color: '#4b5563', flexShrink: 0 }}>{fd(ev.event_date)}</span>
+                    <span style={{ fontSize: '10px', padding: '2px 8px', borderRadius: '20px', background: (TYPE_COLOR[ev.event_type] || '#555') + '22', color: TYPE_COLOR[ev.event_type] || '#555', fontWeight: 600, flexShrink: 0 }}>{TYPE_LABEL[ev.event_type] || ev.event_type}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
         </div>
 
         {/* Projetos recentes */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-            <h3 style={{ fontFamily: "'Syne', sans-serif", fontSize: '16px', fontWeight: 700, color: '#f0ece4' }}>Projetos recentes</h3>
+            <h3 style={{ fontFamily: "'Montserrat', sans-serif", fontSize: '16px', fontWeight: 700, color: '#f0ece4' }}>Projetos recentes</h3>
             <Link href="/dashboard/projects" style={{ fontSize: '12px', color: '#e8c547', textDecoration: 'none' }}>Ver todos →</Link>
           </div>
 
@@ -217,7 +229,7 @@ export default function DashboardPage() {
                     <div style={{ padding: '16px' }}>
                       {/* Title + status */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px', marginBottom: '10px' }}>
-                        <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '14px', fontWeight: 700, color: '#f0ece4', lineHeight: 1.3, flex: 1 }}>{p.name}</div>
+                        <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: '14px', fontWeight: 700, color: '#f0ece4', lineHeight: 1.3, flex: 1 }}>{p.name}</div>
                         <span style={{ fontSize: '10px', fontWeight: 700, padding: '3px 8px', borderRadius: '6px', background: st.color + '22', color: st.color, whiteSpace: 'nowrap', flexShrink: 0 }}>{st.label}</span>
                       </div>
 
@@ -252,7 +264,7 @@ export default function DashboardPage() {
 
                       {/* Value row */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                        <span style={{ fontFamily: "'Syne', sans-serif", fontSize: '16px', fontWeight: 700, color: '#f0ece4' }}>{fv(p.value)}</span>
+                        <span style={{ fontFamily: "'Montserrat', sans-serif", fontSize: '16px', fontWeight: 700, color: '#f0ece4' }}>{fv(p.value)}</span>
                         {pendente > 0 && (
                           <span style={{ fontSize: '12px', color: '#e8924a', fontWeight: 600 }}>R$ {pendente.toLocaleString('pt-BR')} pendente</span>
                         )}

@@ -1,8 +1,8 @@
 export default function TrashPage() {
   return (
-    <div style={{ fontFamily: "'DM Sans', sans-serif", background: '#0d0f12', minHeight: '100vh', padding: '28px' }}>
+    <div style={{ fontFamily: "'Montserrat', sans-serif", background: '#0d0f12', minHeight: '100vh', padding: '28px' }}>
       <div style={{ marginBottom: '28px' }}>
-        <h1 style={{ fontFamily: "'Syne', sans-serif", fontSize: '26px', fontWeight: 700, color: '#f0ece4', marginBottom: '4px' }}>Lixeira</h1>
+        <h1 style={{ fontFamily: "'Montserrat', sans-serif", fontSize: '26px', fontWeight: 700, color: '#f0ece4', marginBottom: '4px' }}>Lixeira</h1>
         <p style={{ color: '#4b5563', fontSize: '13px' }}>Itens excluídos recentemente</p>
       </div>
       <div style={{ background: '#111318', border: '1px solid #1f2229', borderRadius: '10px', padding: '60px', textAlign: 'center' }}>

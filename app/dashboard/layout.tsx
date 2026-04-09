@@ -16,19 +16,30 @@ const ISettings = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="no
 const ICalendar = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
 const ITrash    = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
 const ILogout   = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+const IShield   = () => <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
 
 function fv(v: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 }).format(v)
 }
 
-interface User    { id: string; email: string; name?: string; role: string }
+interface User    { id: string; email: string; name?: string; role: string; is_super_admin?: boolean; permissions?: Record<string, Record<string, boolean> | string[]> }
 interface Counts  { activeProjects: number; quotes: number }
 interface Finance { totalEntradas: number; saldoGeral: number }
+interface Sub     { status: string; trial_ends_at: string | null; next_billing_date: string | null; plans: { name: string } | null }
+
+// Module → path mapping for permission checks
+const MODULE_PATHS: Record<string, string> = {
+  projetos:    '/dashboard/projects',
+  clientes:    '/dashboard/clients',
+  financeiro:  '/dashboard/finance',
+  adm:         '/dashboard/admin',
+}
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [user, setUser]             = useState<User | null>(null)
   const [counts, setCounts]         = useState<Counts>({ activeProjects: 0, quotes: 0 })
   const [finance, setFinance]       = useState<Finance>({ totalEntradas: 0, saldoGeral: 0 })
+  const [sub, setSub]               = useState<Sub | null>(null)
   const [loading, setLoading]       = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [isDesktop, setIsDesktop]   = useState(true)
@@ -81,6 +92,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         setFinance({ totalEntradas: entradas, saldoGeral: entradas - despesas })
       }
 
+      // assinatura
+      const { data: subData } = await supabase
+        .from('subscriptions')
+        .select('status, trial_ends_at, next_billing_date, plans(name)')
+        .eq('company_id', userData.company_id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+      if (subData) setSub(subData as Sub)
+
       setLoading(false)
     }
     load().catch(() => { router.push('/login') })
@@ -92,9 +113,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.push('/')
   }
 
+  // ── Permission helpers ──────────────────────────────────────────────
+  function canView(module: string): boolean {
+    if (!user || user.role === 'admin') return true
+    const p = user.permissions?.[module]
+    if (!p || Array.isArray(p)) return false
+    return p.view !== false
+  }
+
+  // Redirect if user is on a page they can't view (runs after load)
+  useEffect(() => {
+    if (!user || user.role === 'admin') return
+    for (const [mod, path] of Object.entries(MODULE_PATHS)) {
+      if (pathname.startsWith(path) && !canView(mod)) {
+        router.push('/dashboard')
+        break
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, pathname])
+
   if (loading) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#0a0a0a' }}>
-      <div style={{ color: '#555', fontFamily: 'var(--font-dm-sans), DM Sans, sans-serif', fontSize: '13px' }}>Carregando...</div>
+      <div style={{ color: '#555', fontSize: '13px' }}>Carregando...</div>
     </div>
   )
 
@@ -137,7 +178,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <ToastProvider>
-    <div style={{ display: 'flex', minHeight: '100vh', background: '#0a0a0a', fontFamily: 'var(--font-dm-sans), DM Sans, sans-serif' }}>
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#0a0a0a', fontFamily: "var(--font-montserrat), 'Montserrat', sans-serif" }}>
 
       {/* ── Hamburger button (mobile only) ──────────────────────────── */}
       {!isDesktop && (
@@ -182,34 +223,67 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Logo */}
         <div style={{ padding: '22px 18px 18px', borderBottom: '1px solid #2a2a2a', background: 'transparent' }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/img/logo.png" alt="MOV Produtora" style={{ width: '120px', display: 'block' }} />
+          <img
+            src="/img/logo.png"
+            alt="MOV Produtora"
+            style={{ width: '120px', display: 'block' }}
+            onError={e => {
+              const el = e.currentTarget
+              el.style.display = 'none'
+              const fallback = el.nextElementSibling as HTMLElement | null
+              if (fallback) fallback.style.display = 'block'
+            }}
+          />
+          <div style={{ display: 'none', fontFamily: "var(--font-montserrat),'Montserrat',sans-serif", fontWeight: 700, fontSize: '18px', color: '#e8c547', letterSpacing: '2px' }}>
+            MOV
+          </div>
         </div>
 
         {/* Nav */}
         <nav style={{ flex: 1, padding: '6px 8px', overflowY: 'auto' }}>
           <SectionLabel label="Principal" />
-          <Link href="/dashboard"          style={on('/dashboard')         ? linkOn : linkOff}><IGrid />     Dashboard</Link>
-          <Link href="/dashboard/projects" style={on('/dashboard/projects') ? linkOn : linkOff}>
-            <IFilm /> Projetos <Badge n={counts.activeProjects} />
-          </Link>
-          <Link href="/dashboard/clients"  style={on('/dashboard/clients')  ? linkOn : linkOff}><IUsers />    Clientes</Link>
+          <Link href="/dashboard"          className={on('/dashboard')         ? '' : 'nav-link'} style={on('/dashboard')         ? linkOn : linkOff}><IGrid />     Dashboard</Link>
+          {canView('projetos') && (
+            <Link href="/dashboard/projects" className={on('/dashboard/projects') ? '' : 'nav-link'} style={on('/dashboard/projects') ? linkOn : linkOff}>
+              <IFilm /> Projetos <Badge n={counts.activeProjects} />
+            </Link>
+          )}
+          {canView('clientes') && (
+            <Link href="/dashboard/clients"  className={on('/dashboard/clients')  ? '' : 'nav-link'} style={on('/dashboard/clients')  ? linkOn : linkOff}><IUsers />    Clientes</Link>
+          )}
 
-          <SectionLabel label="Financeiro" />
-          <Link href="/dashboard/finance"  style={on('/dashboard/finance')  ? linkOn : linkOff}><IDollar />   Financeiro</Link>
-          <Link href="/dashboard/quotes"   style={on('/dashboard/quotes')   ? linkOn : linkOff}>
-            <IDoc /> Orçamentos <Badge n={counts.quotes} />
-          </Link>
+          {canView('financeiro') && <SectionLabel label="Financeiro" />}
+          {canView('financeiro') && (
+            <Link href="/dashboard/finance"  className={on('/dashboard/finance')  ? '' : 'nav-link'} style={on('/dashboard/finance')  ? linkOn : linkOff}><IDollar />   Financeiro</Link>
+          )}
+          {canView('projetos') && (
+            <Link href="/dashboard/quotes"   className={on('/dashboard/quotes')   ? '' : 'nav-link'} style={on('/dashboard/quotes')   ? linkOn : linkOff}>
+              <IDoc /> Orçamentos <Badge n={counts.quotes} />
+            </Link>
+          )}
 
           <SectionLabel label="Sistema" />
-          {user?.role === 'admin' && (
-            <Link href="/dashboard/admin"   style={on('/dashboard/admin')   ? linkOn : linkOff}><ISettings /> Painel ADM</Link>
+          {canView('adm') && (
+            <Link href="/dashboard/admin"   className={on('/dashboard/admin')   ? '' : 'nav-link'} style={on('/dashboard/admin')   ? linkOn : linkOff}><ISettings /> Painel ADM</Link>
           )}
-          <Link href="/dashboard/events"   style={on('/dashboard/events')   ? linkOn : linkOff}><ICalendar /> Calendário</Link>
-          <Link href="/dashboard/trash"    style={on('/dashboard/trash')    ? linkOn : linkOff}><ITrash />    Lixeira</Link>
+          <Link href="/dashboard/events"   className={on('/dashboard/events')   ? '' : 'nav-link'} style={on('/dashboard/events')   ? linkOn : linkOff}><ICalendar /> Calendário</Link>
+          <Link href="/dashboard/trash"    className={on('/dashboard/trash')    ? '' : 'nav-link'} style={on('/dashboard/trash')    ? linkOn : linkOff}><ITrash />    Lixeira</Link>
+
+          {user?.is_super_admin && <>
+            <SectionLabel label="Plataforma" />
+            <Link href="/dashboard/superadmin" className={on('/dashboard/superadmin') ? '' : 'nav-link'} style={{ ...(on('/dashboard/superadmin') ? linkOn : linkOff), color: on('/dashboard/superadmin') ? '#e8c547' : '#a855f7' }}>
+              <IShield /> Super Admin
+            </Link>
+          </>}
         </nav>
 
         {/* Footer */}
         <div style={{ padding: '14px', marginTop: 'auto', borderTop: '1px solid #2a2a2a' }}>
+          {/* Meu Perfil */}
+          <Link href="/dashboard/profile" style={on('/dashboard/profile') ? { ...linkOn, marginBottom: '4px' } : { ...linkOff, marginBottom: '4px' }}>
+            <IUsers /> {user?.name ? user.name.split(' ')[0] : 'Meu Perfil'}
+          </Link>
+
           {/* Logout discreto */}
           <button
             onClick={handleLogout}
@@ -220,12 +294,44 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <ILogout /> Sair da conta
           </button>
 
+          {/* Plano / Assinatura — sempre visível */}
+          <div style={{ marginBottom: '10px', padding: '8px 10px', background: '#0d0f12', borderRadius: '8px', border: '1px solid #1f2229' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+              <div style={{ fontSize: '11px', color: '#555', lineHeight: 1.5 }}>
+                {!sub && <span style={{ color: '#4b5563' }}>⚪ Sem plano ativo</span>}
+                {sub?.status === 'trial' && (
+                  <span style={{ color: '#5b9bd5' }}>🔵 Trial até {sub.trial_ends_at ? new Date(sub.trial_ends_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }) : '—'}</span>
+                )}
+                {sub?.status === 'active' && (
+                  <span style={{ color: '#5db87a' }}>✅ {sub.plans?.name || 'Plano'}{sub.next_billing_date ? ` · Renova ${new Date(sub.next_billing_date).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}` : ''}</span>
+                )}
+                {sub?.status === 'past_due' && (
+                  <span style={{ color: '#e8c547' }}>⚠️ Pagamento pendente</span>
+                )}
+                {sub?.status === 'suspended' && (
+                  <span style={{ color: '#e85d4a' }}>🚫 Conta suspensa</span>
+                )}
+                {sub?.status === 'cancelled' && (
+                  <span style={{ color: '#6b7280' }}>❌ Plano cancelado</span>
+                )}
+              </div>
+              <button
+                onClick={() => window.open('mailto:contato@mov.com?subject=Upgrade de plano', '_blank')}
+                style={{ background: 'rgba(232,197,71,.1)', border: '1px solid rgba(232,197,71,.2)', borderRadius: '5px', color: '#e8c547', fontSize: '10px', fontWeight: 600, cursor: 'pointer', padding: '3px 8px', whiteSpace: 'nowrap' as const, flexShrink: 0 }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(232,197,71,.2)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(232,197,71,.1)')}
+              >
+                ⬆ Upgrade
+              </button>
+            </div>
+          </div>
+
           {/* Saldo Geral */}
           <div style={{ background: 'rgba(232,197,71,.12)', border: '1px solid #2a2a2a', borderRadius: '6px', padding: '12px' }}>
             <div style={{ fontSize: '10px', color: '#555555', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>
               Saldo Geral
             </div>
-            <div style={{ fontFamily: 'var(--font-syne), Syne, sans-serif', fontSize: '20px', fontWeight: 700, color: finance.saldoGeral >= 0 ? '#e8c547' : '#e85d4a', lineHeight: 1.2 }}>
+            <div style={{ fontFamily: 'var(--font-montserrat), Montserrat, sans-serif', fontSize: '20px', fontWeight: 700, color: finance.saldoGeral >= 0 ? '#e8c547' : '#e85d4a', lineHeight: 1.2 }}>
               {fv(finance.saldoGeral)}
             </div>
             <div style={{ fontSize: '11px', color: '#888888', marginTop: '3px' }}>
