@@ -1543,11 +1543,11 @@ export default function FinancePage() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                     <div>
                       <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Valor (R$) *</label>
-                      <input type="number" style={inp} value={expenseForm.value || ''} onChange={e => setExpenseForm(f => ({ ...f, value: Number(e.target.value) }))} placeholder="0" min={0} />
+                      <input inputMode="decimal" style={inp} value={expenseForm.value || ''} onChange={e => setExpenseForm(f => ({ ...f, value: Number(e.target.value.replace(',', '.')) }))} placeholder="0" />
                     </div>
                     <div>
                       <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Dia do vencimento</label>
-                      <input type="number" style={inp} value={expenseForm.due_day} onChange={e => setExpenseForm(f => ({ ...f, due_day: Number(e.target.value) }))} min={1} max={31} />
+                      <input inputMode="numeric" style={inp} value={expenseForm.due_day} onChange={e => setExpenseForm(f => ({ ...f, due_day: Number(e.target.value) }))} />
                     </div>
                   </div>
                   <div>
