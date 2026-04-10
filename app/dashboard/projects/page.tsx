@@ -1119,7 +1119,8 @@ export default function ProjectsPage() {
         const p = viewProject
         const st = { label: ST_LABEL[p.status] || p.status, color: ST_COLOR[p.status] || '#555' }
         const recebido = (p.data?.pgtos || []).filter(pg => pg.rec).reduce((s, pg) => s + Number(pg.v || 0), 0)
-        const aReceber = (p.data?.pgtos || []).filter(pg => !pg.rec).reduce((s, pg) => s + Number(pg.v || 0), 0)
+        const pendingPgtos = (p.data?.pgtos || []).filter(pg => !pg.rec).reduce((s, pg) => s + Number(pg.v || 0), 0)
+        const aReceber = pendingPgtos > 0 ? pendingPgtos : Math.max(0, Number(p.value || 0) - recebido)
         const custoTotal = (p.data?.custos || []).reduce((s, c) => s + Number(c.v || 0), 0)
         const diariasTotal = (p.data?.diarias || []).reduce((s, d) => s + (Number(d.qtd || 1) * Number(d.v || 0)), 0)
         const totalCustosView = custoTotal + diariasTotal
