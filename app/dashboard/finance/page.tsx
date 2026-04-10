@@ -94,6 +94,8 @@ export default function FinancePage() {
   const [editing, setEditing]           = useState<Transaction | null>(null)
   const [form, setForm]                 = useState<Partial<Transaction>>(BLANK())
   const [saving, setSaving]             = useState(false)
+  const [isRecurring, setIsRecurring]   = useState(false)
+  const [recurringDay, setRecurringDay] = useState(5)
   const [categories, setCategories]     = useState<string[]>([])
   const [showPayModal, setShowPayModal] = useState(false)
   const [payTx, setPayTx]               = useState<Transaction | null>(null)
@@ -328,6 +330,8 @@ export default function FinancePage() {
   function openCreate(preType?: Transaction['type']) {
     setEditing(null)
     setForm({ ...BLANK(), ...(preType ? { type: preType } : {}) })
+    setIsRecurring(false)
+    setRecurringDay(5)
     setShowModal(true)
   }
   function openEdit(t: Transaction) {
@@ -343,7 +347,15 @@ export default function FinancePage() {
       const payload = { ...form, client_id: form.client_id || null }
       const res = await fetch(url, { method: editing ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       if (!res.ok) { const e = await res.json(); throw new Error(e.error) }
-      await load(); setShowModal(false); toast.show(editing ? 'Atualizado!' : 'Criado!', 'success')
+      if (!editing && isRecurring && (form.type === 'saida' || form.type === 'apag')) {
+        await fetch('/api/recurring-expenses', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: form.description, value: form.value || 0, category: form.category || '', due_day: recurringDay }),
+        })
+      }
+      await load(); setShowModal(false); setIsRecurring(false); setRecurringDay(5)
+      toast.show(editing ? 'Atualizado!' : isRecurring ? 'Criado + despesa recorrente salva!' : 'Criado!', 'success')
     } catch (e: unknown) { toast.show('Erro: ' + (e instanceof Error ? e.message : 'Erro'), 'error') }
     finally { setSaving(false) }
   }
@@ -1793,7 +1805,23 @@ export default function FinancePage() {
                   </select>
                 </div>
               )}
-              {(form.type === 'saida' || form.type === 'apag') && <div style={{ marginBottom: '8px' }} />}
+              {!editing && (form.type === 'saida' || form.type === 'apag') && (
+                <div style={{ marginBottom: '16px', padding: '12px 14px', background: '#1a1d24', border: `1px solid ${isRecurring ? 'rgba(232,148,74,.4)' : '#2a2d35'}`, borderRadius: '8px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={isRecurring} onChange={e => setIsRecurring(e.target.checked)}
+                      style={{ width: '16px', height: '16px', accentColor: '#e8924a', cursor: 'pointer' }} />
+                    <span style={{ fontSize: '13px', color: '#f0ece4', fontWeight: 500 }}>Repetir todo mês (despesa recorrente)</span>
+                  </label>
+                  {isRecurring && (
+                    <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <span style={{ fontSize: '12px', color: '#9ca3af' }}>Vence todo dia</span>
+                      <input inputMode="numeric" style={{ ...inp, width: '70px' }} value={recurringDay}
+                        onChange={e => setRecurringDay(Number(e.target.value))} />
+                      <span style={{ fontSize: '12px', color: '#9ca3af' }}>de cada mês</span>
+                    </div>
+                  )}
+                </div>
+              )}
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
                 <button onClick={() => setShowModal(false)} style={btn('ghost')}>Cancelar</button>
                 <button onClick={handleSave} disabled={saving} style={btn('primary')}>{saving ? 'Salvando...' : editing ? 'Salvar' : 'Criar'}</button>
