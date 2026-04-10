@@ -20,7 +20,7 @@ interface Project {
 
 const BLANK = (): Partial<Client> => ({ name: '', segment: '', phone: '', email: '', whatsapp: '', monthly_value: 0, notes: '', client_type: 'empresa', contact_name: '', prospection_source: '' })
 
-const inp: React.CSSProperties = { width: '100%', padding: '9px 12px', background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: '8px', color: '#f0ece4', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }
+const inp: React.CSSProperties = { width: '100%', padding: '9px 12px', background: '#1a1d24', border: '1px solid #2a2a2a', borderRadius: '8px', color: '#f0ece4', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }
 const btn = (v: 'primary' | 'ghost' | 'danger' | 'outline') => ({
   padding: '8px 16px', borderRadius: '8px', fontSize: '13px', fontWeight: 500, cursor: 'pointer',
   border: v === 'ghost' ? '1px solid #2a2a2a' : v === 'outline' ? '1px solid #333' : 'none',
@@ -172,7 +172,7 @@ export default function ClientsPage() {
     : null
 
   return (
-    <div style={{ fontFamily: "'Montserrat', sans-serif", background: '#0a0a0a', minHeight: '100vh', padding: '28px' }}>
+    <div style={{ fontFamily: "'Montserrat', sans-serif", background: '#0d0f12', minHeight: '100vh', padding: '28px' }}>
 
       {/* Page Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
@@ -186,7 +186,7 @@ export default function ClientsPage() {
             <button
               onClick={() => setViewMode('grid')}
               title="Visualização em grade"
-              style={{ padding: '7px 11px', background: viewMode === 'grid' ? '#1a1a1a' : 'transparent', border: 'none', color: viewMode === 'grid' ? '#f0ece4' : '#555', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all .15s' }}
+              style={{ padding: '7px 11px', background: viewMode === 'grid' ? '#1a1d24' : 'transparent', border: 'none', color: viewMode === 'grid' ? '#f0ece4' : '#555', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all .15s' }}
             >
               <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
                 <rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/>
@@ -196,7 +196,7 @@ export default function ClientsPage() {
             <button
               onClick={() => setViewMode('list')}
               title="Visualização em lista"
-              style={{ padding: '7px 11px', background: viewMode === 'list' ? '#1a1a1a' : 'transparent', border: 'none', color: viewMode === 'list' ? '#f0ece4' : '#555', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all .15s' }}
+              style={{ padding: '7px 11px', background: viewMode === 'list' ? '#1a1d24' : 'transparent', border: 'none', color: viewMode === 'list' ? '#f0ece4' : '#555', cursor: 'pointer', display: 'flex', alignItems: 'center', transition: 'all .15s' }}
             >
               <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
                 <rect x="1" y="2" width="14" height="2.5" rx="1"/><rect x="1" y="6.75" width="14" height="2.5" rx="1"/>
@@ -374,7 +374,7 @@ export default function ClientsPage() {
                       style={{
                         flex: 1, padding: '9px', borderRadius: '8px', fontSize: '13px', fontWeight: 600,
                         cursor: 'pointer', border: 'none',
-                        background: form.client_type === t ? (t === 'empresa' ? 'rgba(232,197,71,.2)' : 'rgba(91,155,213,.2)') : '#1a1a1a',
+                        background: form.client_type === t ? (t === 'empresa' ? 'rgba(232,197,71,.2)' : 'rgba(91,155,213,.2)') : '#1a1d24',
                         color: form.client_type === t ? (t === 'empresa' ? '#e8c547' : '#5b9bd5') : '#555',
                         outline: form.client_type === t ? `1px solid ${t === 'empresa' ? '#e8c54755' : '#5b9bd555'}` : '1px solid #2a2a2a',
                       }}
@@ -494,7 +494,7 @@ export default function ClientsPage() {
                     <div style={{ marginTop: '4px', fontSize: '13px', color: '#888' }}>Contato: {viewClient.contact_name}</div>
                   )}
                   {viewClient.segment && (
-                    <span style={{ marginTop: '4px', display: 'inline-block', background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', color: '#888' }}>
+                    <span style={{ marginTop: '4px', display: 'inline-block', background: '#1a1d24', border: '1px solid #2a2a2a', borderRadius: '4px', padding: '2px 8px', fontSize: '11px', color: '#888' }}>
                       {viewClient.segment}
                     </span>
                   )}

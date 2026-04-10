@@ -117,7 +117,7 @@ const BLANK_PROJ = (): Partial<Project> & { data: ProjectData } => ({
 })
 
 const inp: React.CSSProperties = {
-  width: '100%', padding: '9px 12px', background: '#1a1a1a',
+  width: '100%', padding: '9px 12px', background: '#1a1d24',
   border: '1px solid #2a2a2a', borderRadius: '8px', color: '#f0ece4',
   fontSize: '13px', outline: 'none', boxSizing: 'border-box',
 }
@@ -146,7 +146,7 @@ function getUrgency(deliveryDate?: string): { label: string; color: string } | n
 function CommentForm({ projectId, onSubmit }: { projectId: string; onSubmit: (id: string, text: string, link?: string) => void }) {
   const [text, setText] = useState('')
   const [link, setLink] = useState('')
-  const inp2: React.CSSProperties = { width: '100%', padding: '8px 12px', background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: '8px', color: '#f0ece4', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }
+  const inp2: React.CSSProperties = { width: '100%', padding: '8px 12px', background: '#1a1d24', border: '1px solid #2a2a2a', borderRadius: '8px', color: '#f0ece4', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
       <textarea
@@ -594,7 +594,7 @@ export default function ProjectsPage() {
           <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' as const, marginBottom: '20px' }}>
             {subTabs.map(t => (
               <button key={t.key} onClick={() => setSubTab(t.key)}
-                style={{ padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: 500, cursor: 'pointer', border: 'none', background: subTab === t.key ? 'rgba(232,197,71,.15)' : '#1a1a1a', color: subTab === t.key ? '#e8c547' : '#555', transition: 'all .12s' }}>
+                style={{ padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: 500, cursor: 'pointer', border: 'none', background: subTab === t.key ? 'rgba(232,197,71,.15)' : '#1a1d24', color: subTab === t.key ? '#e8c547' : '#555', transition: 'all .12s' }}>
                 {t.label}
               </button>
             ))}
@@ -668,9 +668,9 @@ export default function ProjectsPage() {
           {concluidosProjects.length > 0 && (
             <div style={{ marginTop: '32px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
-                <div style={{ height: '1px', flex: 1, background: '#1a1a1a' }} />
+                <div style={{ height: '1px', flex: 1, background: '#1a1d24' }} />
                 <span style={{ fontSize: '12px', color: '#555', fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '1px' }}>✅ Concluídos ({concluidosProjects.length})</span>
-                <div style={{ height: '1px', flex: 1, background: '#1a1a1a' }} />
+                <div style={{ height: '1px', flex: 1, background: '#1a1d24' }} />
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 {concluidosProjects.map(p => {
@@ -866,7 +866,7 @@ export default function ProjectsPage() {
                           const sel = (form.data?.freeIds || []).includes(f.id)
                           return (
                             <button key={f.id} onClick={() => toggleFree(f.id)}
-                              style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 500, cursor: 'pointer', border: 'none', background: sel ? 'rgba(232,197,71,.2)' : '#1a1a1a', color: sel ? '#e8c547' : '#555' }}>
+                              style={{ padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 500, cursor: 'pointer', border: 'none', background: sel ? 'rgba(232,197,71,.2)' : '#1a1d24', color: sel ? '#e8c547' : '#555' }}>
                               {f.name}{f.area ? ` · ${f.area}` : ''}
                             </button>
                           )
@@ -1217,7 +1217,7 @@ export default function ProjectsPage() {
                 {/* Briefing link */}
                 {p.data?.briefingUrl && (
                   <a href={p.data.briefingUrl} target="_blank" rel="noreferrer"
-                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', background: '#1a1a1a', border: '1px solid #2a2a2a', borderRadius: '8px', color: '#5b9bd5', fontSize: '13px', textDecoration: 'none' }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 14px', background: '#1a1d24', border: '1px solid #2a2a2a', borderRadius: '8px', color: '#5b9bd5', fontSize: '13px', textDecoration: 'none' }}>
                     📎 Ver briefing / anexo →
                   </a>
                 )}

@@ -12,7 +12,7 @@ export async function GET() {
   const supabase = await createClient()
   const companyId = await getCompanyId(supabase)
   if (!companyId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const { data, error } = await supabase.from('clients').select('*').eq('company_id', companyId).order('name')
+  const { data, error } = await supabase.from('clients').select('*').eq('company_id', companyId).is('deleted_at', null).order('name')
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
 }

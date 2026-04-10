@@ -22,7 +22,7 @@ export default function QuotesPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'orcamentos' | 'contratos' | 'aprovacao'>('orcamentos')
+  const [activeTab, setActiveTab] = useState<'orcamentos'>('orcamentos')
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('todos')
   const [showArchived, setShowArchived] = useState(false)
@@ -73,7 +73,7 @@ export default function QuotesPage() {
     finally { setSavingClient(false) }
   }
 
-  if (loading) return <div style={{ padding: '40px', color: '#555', textAlign: 'center', background: '#0a0a0a', minHeight: '100vh', fontFamily: "'Montserrat', sans-serif" }}>Carregando...</div>
+  if (loading) return <div style={{ padding: '40px', color: '#555', textAlign: 'center', background: '#0d0f12', minHeight: '100vh', fontFamily: "'Montserrat', sans-serif" }}>Carregando...</div>
 
   // Metrics
   const drafts = projects.filter(p => p.status === 'orcamento')
@@ -98,7 +98,7 @@ export default function QuotesPage() {
   const metricValueStyle: React.CSSProperties = { fontSize: '28px', fontWeight: 700, color: '#f0ece4', lineHeight: 1 }
 
   return (
-    <div style={{ fontFamily: "'Montserrat', sans-serif", background: '#0a0a0a', minHeight: '100vh', padding: '28px' }}>
+    <div style={{ fontFamily: "'Montserrat', sans-serif", background: '#0d0f12', minHeight: '100vh', padding: '28px' }}>
 
       {/* Page Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '28px' }}>
@@ -110,7 +110,7 @@ export default function QuotesPage() {
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <button
-            onClick={() => toast.show('Em breve', 'info')}
+            onClick={() => { window.location.href = '/dashboard/contracts' }}
             style={btnS('ghost')}
           >
             📋 Contrato
@@ -128,18 +128,10 @@ export default function QuotesPage() {
       <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid #2a2d35', marginBottom: '24px' }}>
         {([
           { key: 'orcamentos', label: 'Orçamentos' },
-          { key: 'contratos', label: 'Contratos' },
-          { key: 'aprovacao', label: 'Página de Aprovação' },
         ] as const).map(tab => (
           <button
             key={tab.key}
-            onClick={() => {
-              if (tab.key !== 'orcamentos') {
-                toast.show('Em breve', 'info')
-              } else {
-                setActiveTab(tab.key)
-              }
-            }}
+            onClick={() => setActiveTab(tab.key)}
             style={{
               padding: '10px 20px',
               background: 'none',
@@ -168,7 +160,7 @@ export default function QuotesPage() {
         ].map(card => (
           <div
             key={card.label}
-            style={{ background: '#111111', border: '1px solid #2a2d35', borderRadius: '12px', padding: '16px 20px' }}
+            style={{ background: '#111318', border: '1px solid #2a2d35', borderRadius: '12px', padding: '16px 20px' }}
           >
             <span style={labelStyle}>{card.label}</span>
             <span style={{ ...metricValueStyle, color: card.color }}>{card.value}</span>
@@ -221,7 +213,7 @@ export default function QuotesPage() {
           onAction={() => { window.location.href = '/dashboard/projects' }}
         />
       ) : (
-        <div style={{ background: '#111111', border: '1px solid #2a2d35', borderRadius: '12px', overflow: 'hidden' }}>
+        <div style={{ background: '#111318', border: '1px solid #2a2d35', borderRadius: '12px', overflow: 'hidden' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ background: '#0d0f12' }}>
@@ -357,7 +349,7 @@ export default function QuotesPage() {
       {/* Mini-modal novo cliente */}
       {showClientModal && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }}>
-          <div style={{ background: '#111111', border: '1px solid #2a2d35', borderRadius: '12px', width: '100%', maxWidth: '400px' }}>
+          <div style={{ background: '#111318', border: '1px solid #2a2d35', borderRadius: '12px', width: '100%', maxWidth: '400px' }}>
             <div style={{ padding: '18px 24px', borderBottom: '1px solid #2a2d35', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: '16px', color: '#f0ece4', margin: 0 }}>Novo Cliente</h3>
               <button onClick={() => setShowClientModal(false)} style={{ background: 'none', border: 'none', color: '#4b5563', cursor: 'pointer', fontSize: '20px' }}>×</button>

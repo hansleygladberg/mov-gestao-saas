@@ -572,7 +572,7 @@ export default function FinancePage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
 
             {/* Contas a Receber */}
-            <div style={{ background: '#111111', border: '1px solid #2a2a2a', borderLeft: '3px solid #5db87a', borderRadius: '12px', padding: '20px' }}>
+            <div style={{ background: '#111318', border: '1px solid #2a2a2a', borderLeft: '3px solid #5db87a', borderRadius: '12px', padding: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
                 <span style={{ fontSize: '14px' }}>📥</span>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '1px' }}>Contas a Receber</span>
@@ -592,7 +592,7 @@ export default function FinancePage() {
             </div>
 
             {/* Contas a Pagar */}
-            <div style={{ background: '#111111', border: '1px solid #2a2a2a', borderLeft: '3px solid #e85d4a', borderRadius: '12px', padding: '20px' }}>
+            <div style={{ background: '#111318', border: '1px solid #2a2a2a', borderLeft: '3px solid #e85d4a', borderRadius: '12px', padding: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
                 <span style={{ fontSize: '14px' }}>📤</span>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '1px' }}>Contas a Pagar</span>
@@ -612,7 +612,7 @@ export default function FinancePage() {
             </div>
 
             {/* Resultado */}
-            <div style={{ background: '#111111', border: '1px solid #2a2a2a', borderLeft: '3px solid #e8c547', borderRadius: '12px', padding: '20px' }}>
+            <div style={{ background: '#111318', border: '1px solid #2a2a2a', borderLeft: '3px solid #e8c547', borderRadius: '12px', padding: '20px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '14px' }}>
                 <span style={{ fontSize: '14px' }}>📊</span>
                 <span style={{ fontSize: '12px', fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '1px' }}>Resultado</span>
