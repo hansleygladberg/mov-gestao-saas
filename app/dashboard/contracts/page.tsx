@@ -236,8 +236,8 @@ export default function ContractsPage() {
         #contract-print-root { display: none; }
         @media print {
           body * { visibility: hidden !important; }
-          #contract-print-root { display: block !important; position: fixed; top: 0; left: 0; width: 100%; background: white; z-index: 99999; }
-          #contract-print-root, #contract-print-root * { visibility: visible !important; }
+          #contract-print-root { display: block !important; visibility: visible !important; position: static; width: 100%; background: white; }
+          #contract-print-root * { visibility: visible !important; }
           @page { size: A4; margin: 20mm 25mm; }
         }
       `}</style>
