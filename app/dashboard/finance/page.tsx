@@ -250,6 +250,7 @@ export default function FinancePage() {
   const donutTotal = donutData.reduce((s, d) => s + d.value, 0)
 
   // ─── Fluxo de caixa futuro (6 meses) ─────────────────────────────────────
+  const despesaFixaMensal = recurringExpenses.filter(e => e.status === 'ativo').reduce((s, e) => s + Number(e.value), 0)
   const avgDespesas3m = (() => {
     let sum = 0
     for (let i = 1; i <= 3; i++) {
@@ -289,7 +290,6 @@ export default function FinancePage() {
 
   // ─── Métricas operacionais ────────────────────────────────────────────────
   const nContratos    = contracts.filter(c => c.status === 'ativo').length
-  const despesaFixaMensal = recurringExpenses.filter(e => e.status === 'ativo').reduce((s, e) => s + Number(e.value), 0)
   const recTotal      = recebido + aReceber
   const recExpected   = recTotal + overdueArec.reduce((s, t) => s + Number(t.value), 0)
   const recPct        = recExpected > 0 ? (recebido / recExpected) * 100 : 0
