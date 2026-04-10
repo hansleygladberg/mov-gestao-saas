@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useToast } from '@/lib/toast'
 import { EmptyState } from '@/components/EmptyState'
+import { createClient } from '@/lib/supabase/client'
 
 function fv(v: number) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0 }).format(v)
@@ -54,6 +55,7 @@ interface CustoItem { d: string; v: number; cat?: string; freelancerId?: string 
 interface PgtoItem { d: string; v: number; dt: string; rec: boolean }
 interface DiariaItem { desc: string; qtd: number; v: number; rentalCompanyId?: string }
 interface CostCategory { value: string; label: string }
+interface FileItem { name: string; url: string; size: number; uploaded_at: string }
 
 interface Comment {
   id: string
@@ -82,6 +84,7 @@ interface ProjectData {
   contractId?: string
   isContract?: boolean      // true if this project is a monthly recurring contract
   contractDueDay?: number   // day of month for billing (1-31)
+  files?: FileItem[]
 }
 
 function calcDuration(start: string, end: string): string {
@@ -196,7 +199,8 @@ export default function ProjectsPage() {
   const [newFreelaSaving, setNewFreelaSaving] = useState(false)
 
   // Current user for stage access
-  const [currentUser, setCurrentUser] = useState<{ id: string; name?: string; role: string; permissions?: { stageAccess?: string[] } } | null>(null)
+  const [currentUser, setCurrentUser] = useState<{ id: string; name?: string; role: string; company_id?: string; permissions?: { stageAccess?: string[] } } | null>(null)
+  const [uploadingFile, setUploadingFile] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -466,6 +470,56 @@ export default function ProjectsPage() {
   function toggleFree(id: string) {
     const ids = form.data?.freeIds || []
     updData('freeIds', ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id])
+  }
+
+  // File upload
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !form.id) return
+    const companyId = currentUser?.company_id
+    if (!companyId) { toast.show('Erro: company_id não encontrado', 'error'); return }
+    setUploadingFile(true)
+    try {
+      const supabase = createClient()
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+      const path = `${companyId}/${form.id}/${Date.now()}_${safeName}`
+      const { error: upErr } = await supabase.storage.from('project-files').upload(path, file, { upsert: true })
+      if (upErr) throw upErr
+      const { data: urlData } = supabase.storage.from('project-files').getPublicUrl(path)
+      const newFile: FileItem = { name: file.name, url: urlData.publicUrl, size: file.size, uploaded_at: new Date().toISOString() }
+      const newFiles = [...(form.data?.files || []), newFile]
+      updData('files', newFiles)
+      toast.show('Arquivo enviado!', 'success')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao enviar arquivo'
+      toast.show(msg, 'error')
+    } finally {
+      setUploadingFile(false)
+      e.target.value = ''
+    }
+  }
+
+  async function handleDeleteFile(index: number) {
+    const files = form.data?.files || []
+    const file = files[index]
+    if (!file) return
+    try {
+      const supabase = createClient()
+      const companyId = currentUser?.company_id
+      if (companyId && form.id) {
+        // Extract path from URL
+        const urlParts = file.url.split('/project-files/')
+        if (urlParts[1]) {
+          await supabase.storage.from('project-files').remove([decodeURIComponent(urlParts[1])])
+        }
+      }
+      const newFiles = files.filter((_, i) => i !== index)
+      updData('files', newFiles)
+      toast.show('Arquivo removido', 'success')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Erro ao remover arquivo'
+      toast.show(msg, 'error')
+    }
   }
 
   // Stage access filtering
@@ -852,6 +906,43 @@ export default function ProjectsPage() {
                   <div style={{ marginBottom: '16px' }}>
                     <label style={{ display: 'block', fontSize: '11px', color: '#555', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Link do Briefing / Anexo</label>
                     <input style={inp} value={form.data?.briefingUrl || ''} onChange={e => updData('briefingUrl', e.target.value)} placeholder="https://drive.google.com/... ou outro link" />
+                  </div>
+
+                  {/* File Upload */}
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', fontSize: '11px', color: '#555', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Arquivos do Projeto</label>
+                    {!form.id ? (
+                      <p style={{ fontSize: '12px', color: '#555', fontStyle: 'italic' as const }}>Salve o projeto primeiro para anexar arquivos.</p>
+                    ) : (
+                      <>
+                        <label style={{ display: 'block', cursor: uploadingFile ? 'not-allowed' : 'pointer' }}>
+                          <div style={{ ...inp, display: 'flex', alignItems: 'center', gap: '8px', cursor: uploadingFile ? 'not-allowed' : 'pointer', color: uploadingFile ? '#555' : '#888', fontSize: '12px' }}>
+                            {uploadingFile ? '⏳ Enviando...' : '📎 Clique para selecionar arquivo'}
+                          </div>
+                          <input
+                            type="file"
+                            accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.zip"
+                            onChange={handleFileUpload}
+                            disabled={uploadingFile}
+                            style={{ display: 'none' }}
+                          />
+                        </label>
+                        {(form.data?.files || []).length > 0 && (
+                          <div style={{ marginTop: '8px', display: 'flex', flexDirection: 'column' as const, gap: '6px' }}>
+                            {(form.data?.files || []).map((f, i) => (
+                              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', background: '#111318', border: '1px solid #2a2d35', borderRadius: '8px', padding: '8px 12px' }}>
+                                <span style={{ fontSize: '16px' }}>📄</span>
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <a href={f.url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', fontSize: '13px', color: '#e8c547', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }}>{f.name}</a>
+                                  <span style={{ fontSize: '11px', color: '#555' }}>{f.size < 1024 * 1024 ? `${(f.size / 1024).toFixed(1)} KB` : `${(f.size / (1024 * 1024)).toFixed(1)} MB`}</span>
+                                </div>
+                                <button type="button" onClick={() => handleDeleteFile(i)} style={{ ...btn('danger'), padding: '3px 8px', fontSize: '11px' }}>✕</button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
 
                   {/* Freelancers */}

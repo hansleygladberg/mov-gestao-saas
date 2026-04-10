@@ -51,6 +51,8 @@ export default function ProfilePage() {
   const [phone, setPhone] = useState('')
   const [savingInfo, setSavingInfo] = useState(false)
 
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+
   // password form
   const [curPass, setCurPass] = useState('')
   const [newPass, setNewPass] = useState('')
@@ -94,6 +96,35 @@ export default function ProfilePage() {
     } else {
       setProfile(p => p ? { ...p, name: name.trim() || undefined, phone: phone.trim() || undefined } : p)
       show('Dados pessoais atualizados!', 'success')
+    }
+  }
+
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !profile) return
+    if (!file.type.startsWith('image/')) {
+      show('Selecione um arquivo de imagem válido.', 'error')
+      return
+    }
+    setUploadingAvatar(true)
+    try {
+      const supabase = createClient()
+      const ext = file.name.split('.').pop() ?? 'jpg'
+      const path = `${profile.id}/avatar.${ext}`
+      const { error: uploadError } = await supabase.storage
+        .from('user-avatars')
+        .upload(path, file, { upsert: true })
+      if (uploadError) { show('Erro ao enviar imagem.', 'error'); return }
+      const { data: { publicUrl } } = supabase.storage.from('user-avatars').getPublicUrl(path)
+      const { error: updateError } = await supabase
+        .from('users')
+        .update({ avatar_url: publicUrl })
+        .eq('id', profile.id)
+      if (updateError) { show('Erro ao salvar URL da foto.', 'error'); return }
+      setProfile(p => p ? { ...p, avatar_url: publicUrl } : p)
+      show('Foto de perfil atualizada!', 'success')
+    } finally {
+      setUploadingAvatar(false)
     }
   }
 
@@ -171,13 +202,36 @@ export default function ProfilePage() {
 
       {/* ── Avatar + identity banner ─────────────────────────────── */}
       <div style={{ ...card, marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '20px' }}>
-        <div style={{
-          width: '64px', height: '64px', borderRadius: '50%',
-          background: avatarBg, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '22px', fontWeight: 700, color: '#fff', flexShrink: 0,
-          userSelect: 'none',
-        }}>
-          {avatarLabel}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+          {profile.avatar_url ? (
+            <img
+              src={profile.avatar_url}
+              alt="Avatar"
+              style={{ width: '64px', height: '64px', borderRadius: '50%', objectFit: 'cover' }}
+            />
+          ) : (
+            <div style={{
+              width: '64px', height: '64px', borderRadius: '50%',
+              background: avatarBg, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '22px', fontWeight: 700, color: '#fff',
+              userSelect: 'none',
+            }}>
+              {avatarLabel}
+            </div>
+          )}
+          {uploadingAvatar ? (
+            <span style={{ fontSize: '11px', color: '#888' }}>Carregando...</span>
+          ) : (
+            <label style={{ fontSize: '11px', color: '#e8c547', cursor: 'pointer' }}>
+              Alterar foto
+              <input
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={handleAvatarUpload}
+              />
+            </label>
+          )}
         </div>
         <div>
           <div style={{ fontSize: '16px', fontWeight: 600, color: '#f0ece4', lineHeight: 1.2 }}>
