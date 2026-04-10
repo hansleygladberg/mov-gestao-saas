@@ -101,9 +101,19 @@ export default function FinancePage() {
   const [payDate, setPayDate]           = useState<string>(new Date().toISOString().split('T')[0])
   const [showHistorico, setShowHistorico] = useState(false)
   const [perms, setPerms] = useState<Record<string, boolean>>({ view: true, create: true, edit: true, delete: true })
-  const [activeTab, setActiveTab] = useState<'geral' | 'receber' | 'pagar' | 'contratos'>('geral')
+  const [activeTab, setActiveTab] = useState<'geral' | 'receber' | 'pagar' | 'contratos' | 'despesas_fixas'>('geral')
   const [showCategoriesModal, setShowCategoriesModal] = useState(false)
   const [contracts, setContracts] = useState<Contract[]>([])
+
+  // Despesas fixas recorrentes
+  interface RecurringExpense {
+    id: string; name: string; value: number; category?: string
+    due_day: number; status: string; notes?: string; generated_months: string[]
+  }
+  const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>([])
+  const [showExpenseForm, setShowExpenseForm] = useState(false)
+  const [editingExpense, setEditingExpense] = useState<RecurringExpense | null>(null)
+  const [expenseForm, setExpenseForm] = useState({ name: '', value: 0, category: '', due_day: 5, notes: '' })
 
   // ─── Tab-level filters ────────────────────────────────────────────────────
   const [filterType, setFilterType]       = useState('')
@@ -124,19 +134,21 @@ export default function FinancePage() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    const [txRes, clRes, settRes, prRes, meRes, contractsRes] = await Promise.all([
+    const [txRes, clRes, settRes, prRes, meRes, contractsRes, recExpRes] = await Promise.all([
       fetch('/api/transactions').then(r => r.json()),
       fetch('/api/clients').then(r => r.json()),
       fetch('/api/company-settings').then(r => r.json()),
       fetch('/api/projects').then(r => r.json()),
       fetch('/api/me').then(r => r.json()).catch(() => null),
       fetch('/api/contracts').then(r => r.json()).catch(() => []),
+      fetch('/api/recurring-expenses').then(r => r.ok ? r.json() : []).catch(() => []),
     ])
     setTransactions(Array.isArray(txRes) ? txRes : [])
     setClients(Array.isArray(clRes) ? clRes : [])
     setCategories(settRes?.categoriasFinanceiras || [])
     setContracts(Array.isArray(contractsRes) ? contractsRes : [])
     setProjects(Array.isArray(prRes) ? prRes : [])
+    setRecurringExpenses(Array.isArray(recExpRes) ? recExpRes : [])
     if (meRes?.user?.role !== 'admin' && meRes?.user?.permissions?.financeiro) {
       setPerms(meRes.user.permissions.financeiro as Record<string, boolean>)
     }
@@ -252,7 +264,7 @@ export default function FinancePage() {
   const futureData = Array.from({ length: 6 }, (_, i) => {
     const m = (selMonth + i) % 12
     const y = selYear + Math.floor((selMonth + i) / 12)
-    return { mes: `${MONTHS[m]}/${y.toString().slice(-2)}`, Entradas: receitaFixaMensal, Despesas: avgDespesas3m, isFuture: i > 0 }
+    return { mes: `${MONTHS[m]}/${y.toString().slice(-2)}`, Entradas: receitaFixaMensal, Despesas: Math.max(avgDespesas3m, despesaFixaMensal), isFuture: i > 0 }
   })
 
   // ─── Receita por cliente ──────────────────────────────────────────────────
@@ -277,6 +289,7 @@ export default function FinancePage() {
 
   // ─── Métricas operacionais ────────────────────────────────────────────────
   const nContratos    = contracts.filter(c => c.status === 'ativo').length
+  const despesaFixaMensal = recurringExpenses.filter(e => e.status === 'ativo').reduce((s, e) => s + Number(e.value), 0)
   const recTotal      = recebido + aReceber
   const recExpected   = recTotal + overdueArec.reduce((s, t) => s + Number(t.value), 0)
   const recPct        = recExpected > 0 ? (recebido / recExpected) * 100 : 0
@@ -303,6 +316,8 @@ export default function FinancePage() {
     insights.push({ icon: '⏰', text: `${overdueArec.length} fatura${overdueArec.length > 1 ? 's' : ''} a receber em atraso: ${fv(overdueArec.reduce((s, t) => s + Number(t.value), 0))}`, color: '#e85d4a' })
   if (receitaFixaMensal > 0)
     insights.push({ icon: '📅', text: `Projeção próximo mês: ${fv(receitaFixaMensal)} em contratos fixos`, color: '#5b9bd5' })
+  if (despesaFixaMensal > 0)
+    insights.push({ icon: '💸', text: `Despesas fixas mensais: ${fv(despesaFixaMensal)} em ${recurringExpenses.filter(e => e.status === 'ativo').length} item${recurringExpenses.filter(e => e.status === 'ativo').length !== 1 ? 's' : ''}`, color: '#e8924a' })
   if (insights.length === 0)
     insights.push({ icon: '✅', text: 'Tudo em ordem — nenhum alerta este mês', color: '#5db87a' })
 
@@ -358,6 +373,62 @@ export default function FinancePage() {
     await load()
     toast.show(`Cobrança de ${contract.name} gerada!`, 'success')
   }
+  async function generateExpense(exp: RecurringExpense) {
+    const dueDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(exp.due_day).padStart(2,'0')}`
+    const r = await fetch('/api/transactions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'apag',
+        value: exp.value,
+        description: exp.name,
+        category: exp.category || 'Despesa Fixa',
+        transaction_date: dueDate,
+      }),
+    })
+    if (!r.ok) { toast.show('Erro ao gerar despesa', 'error'); return }
+    const updatedMonths = [...(exp.generated_months || []), currentMonthKey]
+    await fetch(`/api/recurring-expenses/${exp.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ generated_months: updatedMonths }),
+    })
+    await load()
+    toast.show(`Despesa "${exp.name}" gerada!`, 'success')
+  }
+
+  async function saveExpense() {
+    if (!expenseForm.name.trim()) { toast.show('Informe o nome', 'error'); return }
+    if (!expenseForm.value) { toast.show('Informe o valor', 'error'); return }
+    const url = editingExpense ? `/api/recurring-expenses/${editingExpense.id}` : '/api/recurring-expenses'
+    const method = editingExpense ? 'PUT' : 'POST'
+    const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(expenseForm) })
+    if (!r.ok) { toast.show('Erro ao salvar', 'error'); return }
+    await load()
+    setShowExpenseForm(false)
+    setEditingExpense(null)
+    setExpenseForm({ name: '', value: 0, category: '', due_day: 5, notes: '' })
+    toast.show(editingExpense ? 'Atualizado!' : 'Despesa criada!', 'success')
+  }
+
+  async function deleteExpense(id: string) {
+    if (!confirm('Excluir esta despesa recorrente?')) return
+    await fetch(`/api/recurring-expenses/${id}`, { method: 'DELETE' })
+    await load()
+    toast.show('Excluído', 'success')
+  }
+
+  function openExpenseForm(exp?: RecurringExpense) {
+    if (exp) {
+      setEditingExpense(exp)
+      setExpenseForm({ name: exp.name, value: exp.value, category: exp.category || '', due_day: exp.due_day, notes: exp.notes || '' })
+    } else {
+      setEditingExpense(null)
+      setExpenseForm({ name: '', value: 0, category: '', due_day: 5, notes: '' })
+    }
+    setShowExpenseForm(true)
+  }
+
   function openPayModal(t: Transaction) { setPayTx(t); setPayAmount(t.value); setPayDate(new Date().toISOString().split('T')[0]); setShowPayModal(true) }
   async function handleConfirmPay() {
     if (!payTx) return
@@ -506,6 +577,7 @@ export default function FinancePage() {
           { key: 'receber', label: 'Receber' },
           { key: 'pagar',   label: 'Pagar' },
           { key: 'contratos', label: '🔁 Contratos Fixos' },
+          { key: 'despesas_fixas', label: '💸 Despesas Fixas' },
         ] as const).map(tab => (
           <button
             key={tab.key}
@@ -530,24 +602,13 @@ export default function FinancePage() {
                 {contracts.filter(c => c.status === 'ativo').length}
               </span>
             )}
+            {tab.key === 'despesas_fixas' && recurringExpenses.filter(e => e.status === 'ativo').length > 0 && (
+              <span style={{ marginLeft: '6px', background: '#e85d4a', color: '#fff', fontSize: '10px', fontWeight: 700, padding: '1px 6px', borderRadius: '20px' }}>
+                {recurringExpenses.filter(e => e.status === 'ativo').length}
+              </span>
+            )}
           </button>
         ))}
-        <button
-          style={{
-            background: 'none',
-            border: 'none',
-            borderBottom: '2px solid transparent',
-            color: '#333',
-            fontSize: '13px',
-            fontWeight: 500,
-            padding: '10px 20px',
-            cursor: 'default',
-            fontFamily: "'Montserrat', sans-serif",
-            marginBottom: '-1px',
-          }}
-        >
-          Relatórios
-        </button>
       </div>
 
       {/* ════════════════════════════════════════════════════════════════ */}
@@ -1347,6 +1408,142 @@ export default function FinancePage() {
                   </div>
                 )
               })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {/* TAB: DESPESAS FIXAS                                           */}
+      {/* ════════════════════════════════════════════════════════════════ */}
+      {activeTab === 'despesas_fixas' && (
+        <div>
+          {/* Summary cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '24px' }}>
+            {[
+              { label: 'DESPESAS ATIVAS', value: recurringExpenses.filter(e => e.status === 'ativo').length.toString(), color: '#e85d4a' },
+              { label: 'CUSTO MENSAL FIXO', value: fv(despesaFixaMensal), color: '#e8924a' },
+              { label: 'GERADAS ESTE MÊS', value: recurringExpenses.filter(e => (e.generated_months || []).includes(currentMonthKey)).length.toString(), color: '#e8c547' },
+            ].map(k => (
+              <div key={k.label} style={{ background: '#111318', border: '1px solid #1f2229', borderRadius: '10px', padding: '16px 20px' }}>
+                <div style={{ fontSize: '10px', fontWeight: 700, color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1.5px', marginBottom: '8px' }}>{k.label}</div>
+                <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: '24px', fontWeight: 700, color: k.color }}>{k.value}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Header + Add button */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <div style={{ fontSize: '13px', color: '#4b5563' }}>
+              {despesaFixaMensal > 0 && <span>Total mensal: <strong style={{ color: '#e8924a' }}>{fv(despesaFixaMensal)}</strong> em {recurringExpenses.filter(e => e.status === 'ativo').length} despesa{recurringExpenses.filter(e => e.status === 'ativo').length !== 1 ? 's' : ''}</span>}
+            </div>
+            <button
+              onClick={() => openExpenseForm()}
+              style={{ padding: '8px 16px', background: 'rgba(232,93,74,.15)', border: '1px solid rgba(232,93,74,.3)', borderRadius: '8px', color: '#e85d4a', fontSize: '13px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontFamily: "'Montserrat', sans-serif" }}
+            >
+              + Nova Despesa Fixa
+            </button>
+          </div>
+
+          {/* List */}
+          {recurringExpenses.length === 0 ? (
+            <div style={{ background: '#111318', border: '1px solid #1f2229', borderRadius: '10px', padding: '48px', textAlign: 'center' as const }}>
+              <div style={{ fontSize: '32px', marginBottom: '12px' }}>💸</div>
+              <div style={{ color: '#f0ece4', fontWeight: 600, marginBottom: '6px' }}>Nenhuma despesa fixa</div>
+              <div style={{ color: '#4b5563', fontSize: '13px' }}>Cadastre despesas recorrentes como aluguel, internet, salários etc.</div>
+              <button onClick={() => openExpenseForm()} style={{ marginTop: '16px', padding: '8px 20px', background: 'rgba(232,93,74,.15)', border: '1px solid rgba(232,93,74,.3)', borderRadius: '8px', color: '#e85d4a', fontSize: '13px', fontWeight: 600, cursor: 'pointer', fontFamily: "'Montserrat', sans-serif" }}>
+                + Adicionar primeira despesa
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {recurringExpenses.map(exp => {
+                const alreadyGenerated = (exp.generated_months || []).includes(currentMonthKey)
+                const isActive = exp.status === 'ativo'
+                return (
+                  <div key={exp.id} style={{ background: '#111318', border: `1px solid ${isActive ? 'rgba(232,93,74,.2)' : '#1f2229'}`, borderRadius: '10px', padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div style={{ width: '10px', height: '10px', borderRadius: '50%', background: isActive ? '#e85d4a' : '#555', flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' as const }}>
+                        <span style={{ fontSize: '14px', fontWeight: 700, color: '#f0ece4' }}>{exp.name}</span>
+                        {exp.category && (
+                          <span style={{ fontSize: '11px', padding: '2px 8px', background: '#1a1d24', border: '1px solid #2a2d35', borderRadius: '20px', color: '#9ca3af' }}>{exp.category}</span>
+                        )}
+                        {!isActive && (
+                          <span style={{ fontSize: '11px', padding: '2px 8px', background: 'rgba(107,114,128,.15)', border: '1px solid rgba(107,114,128,.3)', borderRadius: '20px', color: '#6b7280' }}>
+                            {exp.status === 'pausado' ? 'Pausado' : 'Cancelado'}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: '#6b7280', flexWrap: 'wrap' as const }}>
+                        <span>📅 Vence dia {exp.due_day}</span>
+                        {alreadyGenerated && <span style={{ color: '#5db87a' }}>✓ Lançada este mês</span>}
+                        {exp.notes && <span>📝 {exp.notes}</span>}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' as const, flexShrink: 0 }}>
+                      <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: '18px', fontWeight: 700, color: '#e85d4a' }}>{fv(Number(exp.value))}</div>
+                      <div style={{ fontSize: '11px', color: '#4b5563' }}>/mês</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexShrink: 0, flexWrap: 'wrap' as const }}>
+                      {isActive && !alreadyGenerated ? (
+                        <button
+                          onClick={() => generateExpense(exp)}
+                          style={{ padding: '7px 14px', background: 'rgba(232,93,74,.15)', border: '1px solid rgba(232,93,74,.3)', borderRadius: '8px', color: '#e85d4a', fontSize: '12px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', fontFamily: "'Montserrat', sans-serif" }}>
+                          ⚡ Lançar
+                        </button>
+                      ) : isActive && alreadyGenerated ? (
+                        <span style={{ fontSize: '12px', color: '#5db87a', padding: '7px 12px', background: 'rgba(93,184,122,.08)', borderRadius: '8px', border: '1px solid rgba(93,184,122,.15)' }}>✓ Lançado</span>
+                      ) : null}
+                      <button onClick={() => openExpenseForm(exp)} style={{ padding: '7px 10px', background: 'transparent', border: '1px solid #2a2d35', borderRadius: '8px', color: '#6b7280', fontSize: '12px', cursor: 'pointer' }}>✏️</button>
+                      <button onClick={() => deleteExpense(exp.id)} style={{ padding: '7px 10px', background: 'rgba(232,93,74,.08)', border: '1px solid rgba(232,93,74,.15)', borderRadius: '8px', color: '#e85d4a', fontSize: '12px', cursor: 'pointer' }}>🗑</button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* Form modal */}
+          {showExpenseForm && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '20px' }}>
+              <div style={{ background: '#111318', border: '1px solid #1f2229', borderRadius: '12px', width: '100%', maxWidth: '440px' }}>
+                <div style={{ padding: '20px 24px', borderBottom: '1px solid #1f2229', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ fontFamily: "'Montserrat', sans-serif", fontWeight: 700, fontSize: '15px', color: '#f0ece4' }}>{editingExpense ? 'Editar Despesa Fixa' : '+ Nova Despesa Fixa'}</h3>
+                  <button onClick={() => setShowExpenseForm(false)} style={{ background: 'none', border: 'none', color: '#4b5563', cursor: 'pointer', fontSize: '20px' }}>×</button>
+                </div>
+                <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Nome *</label>
+                    <input style={inp} value={expenseForm.name} onChange={e => setExpenseForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: Aluguel do estúdio" />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Valor (R$) *</label>
+                      <input type="number" style={inp} value={expenseForm.value || ''} onChange={e => setExpenseForm(f => ({ ...f, value: Number(e.target.value) }))} placeholder="0" min={0} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Dia do vencimento</label>
+                      <input type="number" style={inp} value={expenseForm.due_day} onChange={e => setExpenseForm(f => ({ ...f, due_day: Number(e.target.value) }))} min={1} max={31} />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Categoria</label>
+                    {categories.length > 0
+                      ? <select style={inp} value={expenseForm.category} onChange={e => setExpenseForm(f => ({ ...f, category: e.target.value }))}><option value="">— Selecionar —</option>{categories.map(c => <option key={c} value={c}>{c}</option>)}</select>
+                      : <input style={inp} value={expenseForm.category} onChange={e => setExpenseForm(f => ({ ...f, category: e.target.value }))} placeholder="Aluguel, Internet, Salário..." />
+                    }
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Observações</label>
+                    <input style={inp} value={expenseForm.notes} onChange={e => setExpenseForm(f => ({ ...f, notes: e.target.value }))} placeholder="Informações adicionais..." />
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '4px' }}>
+                    <button onClick={() => setShowExpenseForm(false)} style={btn('ghost')}>Cancelar</button>
+                    <button onClick={saveExpense} style={btn('primary')}>{editingExpense ? 'Salvar' : 'Criar'}</button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
