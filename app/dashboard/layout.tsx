@@ -100,7 +100,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         .order('created_at', { ascending: false })
         .limit(1)
         .single()
-      if (subData) setSub(subData as Sub)
+      if (subData) setSub(subData as unknown as Sub)
 
       setLoading(false)
     }
