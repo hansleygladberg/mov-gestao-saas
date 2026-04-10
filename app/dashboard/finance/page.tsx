@@ -104,6 +104,9 @@ export default function FinancePage() {
   const [activeTab, setActiveTab] = useState<'geral' | 'receber' | 'pagar' | 'contratos' | 'despesas_fixas'>('geral')
   const [showCategoriesModal, setShowCategoriesModal] = useState(false)
   const [contracts, setContracts] = useState<Contract[]>([])
+  const [showContractForm, setShowContractForm] = useState(false)
+  const [editingContract, setEditingContract] = useState<Contract | null>(null)
+  const [contractForm, setContractForm] = useState({ name: '', value: 0, due_day: 5, client_id: '', start_date: '', notes: '', status: 'ativo' })
 
   // Despesas fixas recorrentes
   interface RecurringExpense {
@@ -427,6 +430,38 @@ export default function FinancePage() {
       setExpenseForm({ name: '', value: 0, category: '', due_day: 5, notes: '' })
     }
     setShowExpenseForm(true)
+  }
+
+  async function saveContract() {
+    if (!contractForm.name.trim()) { toast.show('Informe o nome', 'error'); return }
+    if (!contractForm.value) { toast.show('Informe o valor', 'error'); return }
+    const url = editingContract ? `/api/contracts/${editingContract.id}` : '/api/contracts'
+    const method = editingContract ? 'PUT' : 'POST'
+    const r = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...contractForm, client_id: contractForm.client_id || null }) })
+    if (!r.ok) { toast.show('Erro ao salvar', 'error'); return }
+    await load()
+    setShowContractForm(false)
+    setEditingContract(null)
+    setContractForm({ name: '', value: 0, due_day: 5, client_id: '', start_date: '', notes: '', status: 'ativo' })
+    toast.show(editingContract ? 'Contrato atualizado!' : 'Contrato criado!', 'success')
+  }
+
+  async function deleteContract(id: string) {
+    if (!confirm('Excluir este contrato fixo?')) return
+    await fetch(`/api/contracts/${id}`, { method: 'DELETE' })
+    await load()
+    toast.show('Excluído', 'success')
+  }
+
+  function openContractForm(c?: Contract) {
+    if (c) {
+      setEditingContract(c)
+      setContractForm({ name: c.name, value: c.value, due_day: c.due_day, client_id: c.client_id || '', start_date: c.start_date || '', notes: c.notes || '', status: c.status })
+    } else {
+      setEditingContract(null)
+      setContractForm({ name: '', value: 0, due_day: 5, client_id: '', start_date: '', notes: '', status: 'ativo' })
+    }
+    setShowContractForm(true)
   }
 
   function openPayModal(t: Transaction) { setPayTx(t); setPayAmount(t.value); setPayDate(new Date().toISOString().split('T')[0]); setShowPayModal(true) }
@@ -1362,6 +1397,12 @@ export default function FinancePage() {
       {/* ════════════════════════════════════════════════════════════════ */}
       {activeTab === 'contratos' && (
         <div>
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+            <div style={{ fontSize: '15px', fontWeight: 700, color: '#f0ece4' }}>Contratos Fixos</div>
+            <button onClick={() => openContractForm()} style={btn('primary')}>+ Novo Contrato Fixo</button>
+          </div>
+
           {/* Summary cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '24px' }}>
             {[
@@ -1415,7 +1456,7 @@ export default function FinancePage() {
                       <div style={{ fontFamily: "'Montserrat', sans-serif", fontSize: '18px', fontWeight: 700, color: '#5db87a' }}>{fv(Number(c.value))}</div>
                       <div style={{ fontSize: '11px', color: '#4b5563' }}>/mês</div>
                     </div>
-                    <div style={{ flexShrink: 0 }}>
+                    <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
                       {isActive && !alreadyGenerated ? (
                         <button
                           onClick={() => generateCharge(c)}
@@ -1427,6 +1468,8 @@ export default function FinancePage() {
                       ) : (
                         <span style={{ fontSize: '12px', color: '#555' }}>—</span>
                       )}
+                      <button onClick={() => openContractForm(c)} style={{ padding: '6px 10px', background: 'transparent', border: '1px solid #2a2d35', borderRadius: '6px', color: '#9ca3af', fontSize: '12px', cursor: 'pointer' }}>✏️</button>
+                      <button onClick={() => deleteContract(c.id)} style={{ padding: '6px 10px', background: 'transparent', border: '1px solid rgba(239,68,68,.2)', borderRadius: '6px', color: '#ef4444', fontSize: '12px', cursor: 'pointer' }}>🗑</button>
                     </div>
                   </div>
                 )
@@ -1524,6 +1567,65 @@ export default function FinancePage() {
                   </div>
                 )
               })}
+            </div>
+          )}
+
+          {/* Contract Form modal */}
+          {showContractForm && (
+            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+              onClick={() => setShowContractForm(false)}>
+              <div style={{ background: '#111318', border: '1px solid #2a2d35', borderRadius: '12px', padding: '24px', width: '100%', maxWidth: '480px' }}
+                onClick={e => e.stopPropagation()}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <div style={{ fontWeight: 700, color: '#f0ece4', fontSize: '15px' }}>{editingContract ? 'Editar Contrato Fixo' : '+ Novo Contrato Fixo'}</div>
+                  <button onClick={() => setShowContractForm(false)} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: '18px' }}>×</button>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Nome *</label>
+                    <input style={inp} value={contractForm.name} onChange={e => setContractForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: Retainer mensal - Cliente X" />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Valor (R$) *</label>
+                      <input inputMode="decimal" style={inp} value={contractForm.value || ''} onChange={e => setContractForm(f => ({ ...f, value: Number(e.target.value.replace(',', '.')) }))} placeholder="0" />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Dia vencimento</label>
+                      <input inputMode="numeric" style={inp} value={contractForm.due_day} onChange={e => setContractForm(f => ({ ...f, due_day: Number(e.target.value) }))} />
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Cliente</label>
+                    <select style={inp} value={contractForm.client_id} onChange={e => setContractForm(f => ({ ...f, client_id: e.target.value }))}>
+                      <option value="">— Selecionar —</option>
+                      {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Início</label>
+                      <input type="date" style={inp} value={contractForm.start_date} onChange={e => setContractForm(f => ({ ...f, start_date: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Status</label>
+                      <select style={inp} value={contractForm.status} onChange={e => setContractForm(f => ({ ...f, status: e.target.value }))}>
+                        <option value="ativo">Ativo</option>
+                        <option value="pausado">Pausado</option>
+                        <option value="cancelado">Cancelado</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Observações</label>
+                    <input style={inp} value={contractForm.notes} onChange={e => setContractForm(f => ({ ...f, notes: e.target.value }))} placeholder="Informações adicionais..." />
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '4px' }}>
+                    <button onClick={() => setShowContractForm(false)} style={btn('ghost')}>Cancelar</button>
+                    <button onClick={saveContract} style={btn('primary')}>{editingContract ? 'Salvar' : 'Criar'}</button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
