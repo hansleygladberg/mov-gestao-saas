@@ -234,10 +234,10 @@ export default function ContractsPage() {
       {/* ── Print / PDF styles ────────────────────────────────────────── */}
       <style>{`
         #contract-print-root { display: none; }
+        #contract-main-ui { display: block; }
         @media print {
-          body * { visibility: hidden !important; }
-          #contract-print-root { display: block !important; visibility: visible !important; position: static; width: 100%; background: white; }
-          #contract-print-root * { visibility: visible !important; }
+          #contract-main-ui { display: none !important; }
+          #contract-print-root { display: block !important; }
           @page { size: A4; margin: 20mm 25mm; }
         }
       `}</style>
@@ -260,7 +260,7 @@ export default function ContractsPage() {
       </div>
 
       {/* ── Main UI ───────────────────────────────────────────────────── */}
-      <div style={{ fontFamily: "'Montserrat', sans-serif", background: '#0d0f12', minHeight: '100vh', padding: '24px' }}>
+      <div id="contract-main-ui" style={{ fontFamily: "'Montserrat', sans-serif", background: '#0d0f12', minHeight: '100vh', padding: '24px' }}>
 
         {toast && (
           <div style={{ position: 'fixed', top: 20, right: 20, background: '#111318', border: '1px solid #2a2d35', borderRadius: '8px', padding: '10px 18px', color: '#f0ece4', fontSize: '13px', zIndex: 9999 }}>
