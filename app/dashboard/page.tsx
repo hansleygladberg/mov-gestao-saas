@@ -142,7 +142,7 @@ export default function DashboardPage() {
             { label: 'PROJETOS ATIVOS', value: activeProjects.length.toString(), sub: `${projects.filter(p => p.status === 'entregue').length} entregues`, color: '#e8c547' },
             { label: 'PROJETOS PENDENTES', value: pendingProjects.length.toString(), sub: `${quoteProjects.length} orçamento${quoteProjects.length !== 1 ? 's' : ''} aberto${quoteProjects.length !== 1 ? 's' : ''}`, color: '#5b9bd5' },
             { label: 'NOVOS ESTE MÊS', value: newThisMonth.toString(), sub: 'projetos criados no mês', color: '#9b8fd5' },
-            { label: 'A RECEBER', value: fv(Math.max(totalPending, aReceberProjetos)), sub: aReceberProjetos > totalPending ? `${projects.filter(p => !['orcamento','orcamento_desaprovado','entregue'].includes(p.status) && (p.data?.pgtos||[]).some(pg=>!pg.rec)).length} projeto${projects.filter(p => !['orcamento','orcamento_desaprovado','entregue'].includes(p.status) && (p.data?.pgtos||[]).some(pg=>!pg.rec)).length!==1?'s':''} com saldo pendente` : 'em transações', color: '#e8924a' },
+            { label: 'A RECEBER', value: fv(Math.max(totalPending, aReceberProjetos)), sub: aReceberProjetos > totalPending ? 'de projetos em andamento' : 'em transações', color: '#e8924a' },
             { label: 'A PAGAR MÊS', value: fv(aPagarMes), sub: aPagarMes > 0 ? 'contas pendentes' : 'sem pendências', color: aPagarMes > 0 ? '#e8924a' : '#5db87a' },
           ].map(k => (
             <div key={k.label} style={{ background: '#111318', border: '1px solid #1f2229', borderRadius: '10px', padding: '18px 20px' }}>

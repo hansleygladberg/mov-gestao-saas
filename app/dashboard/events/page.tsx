@@ -61,7 +61,7 @@ function getWeekDates(y:number,m:number,d:number){
 
 // ── Input style ───────────────────────────────────────────────────────────
 const INP: React.CSSProperties = {
-  width:'100%',padding:'9px 12px',background:'#2a2a32',
+  width:'100%',padding:'9px 12px',background:'#1a1d24',
   border:`1px solid ${BORDER}`,borderRadius:'8px',color:TEXT_P,
   fontSize:'13px',outline:'none',boxSizing:'border-box',fontFamily:FONT,
 }

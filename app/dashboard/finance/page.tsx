@@ -444,6 +444,28 @@ export default function FinancePage() {
     toast.show('Gerando impressão/PDF...', 'info')
   }
 
+  function handleExportCSV() {
+    const rows = [
+      ['Data', 'Tipo', 'Descrição', 'Categoria', 'Valor'],
+      ...filtered.map(t => [
+        t.transaction_date || '',
+        t.type === 'entrada' ? 'Entrada' : t.type === 'saida' ? 'Saída' : t.type === 'arec' ? 'A Receber' : 'A Pagar',
+        (t.description || '').replace(/,/g, ';'),
+        (t.category || '').replace(/,/g, ';'),
+        String(t.value).replace('.', ','),
+      ])
+    ]
+    const csv = rows.map(r => r.join(',')).join('\n')
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `financeiro-${MONTHS_FULL[selMonth]}-${selYear}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.show('CSV exportado!', 'success')
+  }
+
   const years = [selYear - 1, selYear, selYear + 1]
 
   if (loading) return (
@@ -540,7 +562,8 @@ export default function FinancePage() {
           </div>
         </div>
         <div className="no-print" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-          <button onClick={handleExportPDF} style={{ ...btn('ghost'), fontSize: '12px', padding: '7px 12px' }}>⬇ Exportar PDF</button>
+          <button onClick={handleExportCSV} style={{ ...btn('ghost'), fontSize: '12px', padding: '7px 12px' }}>📊 CSV</button>
+          <button onClick={handleExportPDF} style={{ ...btn('ghost'), fontSize: '12px', padding: '7px 12px' }}>⬇ PDF</button>
           {perms.create !== false && <button onClick={() => openCreate()} style={btn('primary')}>+ Nova Transação</button>}
         </div>
       </div>
