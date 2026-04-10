@@ -1570,65 +1570,6 @@ export default function FinancePage() {
             </div>
           )}
 
-          {/* Contract Form modal */}
-          {showContractForm && (
-            <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
-              onClick={() => setShowContractForm(false)}>
-              <div style={{ background: '#111318', border: '1px solid #2a2d35', borderRadius: '12px', padding: '24px', width: '100%', maxWidth: '480px' }}
-                onClick={e => e.stopPropagation()}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                  <div style={{ fontWeight: 700, color: '#f0ece4', fontSize: '15px' }}>{editingContract ? 'Editar Contrato Fixo' : '+ Novo Contrato Fixo'}</div>
-                  <button onClick={() => setShowContractForm(false)} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: '18px' }}>×</button>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Nome *</label>
-                    <input style={inp} value={contractForm.name} onChange={e => setContractForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: Retainer mensal - Cliente X" />
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Valor (R$) *</label>
-                      <input inputMode="decimal" style={inp} value={contractForm.value || ''} onChange={e => setContractForm(f => ({ ...f, value: Number(e.target.value.replace(',', '.')) }))} placeholder="0" />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Dia vencimento</label>
-                      <input inputMode="numeric" style={inp} value={contractForm.due_day} onChange={e => setContractForm(f => ({ ...f, due_day: Number(e.target.value) }))} />
-                    </div>
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Cliente</label>
-                    <select style={inp} value={contractForm.client_id} onChange={e => setContractForm(f => ({ ...f, client_id: e.target.value }))}>
-                      <option value="">— Selecionar —</option>
-                      {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Início</label>
-                      <input type="date" style={inp} value={contractForm.start_date} onChange={e => setContractForm(f => ({ ...f, start_date: e.target.value }))} />
-                    </div>
-                    <div>
-                      <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Status</label>
-                      <select style={inp} value={contractForm.status} onChange={e => setContractForm(f => ({ ...f, status: e.target.value }))}>
-                        <option value="ativo">Ativo</option>
-                        <option value="pausado">Pausado</option>
-                        <option value="cancelado">Cancelado</option>
-                      </select>
-                    </div>
-                  </div>
-                  <div>
-                    <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Observações</label>
-                    <input style={inp} value={contractForm.notes} onChange={e => setContractForm(f => ({ ...f, notes: e.target.value }))} placeholder="Informações adicionais..." />
-                  </div>
-                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '4px' }}>
-                    <button onClick={() => setShowContractForm(false)} style={btn('ghost')}>Cancelar</button>
-                    <button onClick={saveContract} style={btn('primary')}>{editingContract ? 'Salvar' : 'Criar'}</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Form modal */}
           {showExpenseForm && (
             <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.8)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '20px' }}>
@@ -1671,6 +1612,65 @@ export default function FinancePage() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── CONTRACT FORM MODAL ──────────────────────────────────────── */}
+      {showContractForm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.7)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+          onClick={() => setShowContractForm(false)}>
+          <div style={{ background: '#111318', border: '1px solid #2a2d35', borderRadius: '12px', padding: '24px', width: '100%', maxWidth: '480px' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div style={{ fontWeight: 700, color: '#f0ece4', fontSize: '15px' }}>{editingContract ? 'Editar Contrato Fixo' : '+ Novo Contrato Fixo'}</div>
+              <button onClick={() => setShowContractForm(false)} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', fontSize: '18px' }}>×</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Nome *</label>
+                <input style={inp} value={contractForm.name} onChange={e => setContractForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: Retainer mensal - Cliente X" />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Valor (R$) *</label>
+                  <input inputMode="decimal" style={inp} value={contractForm.value || ''} onChange={e => setContractForm(f => ({ ...f, value: Number(e.target.value.replace(',', '.')) }))} placeholder="0" />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Dia vencimento</label>
+                  <input inputMode="numeric" style={inp} value={contractForm.due_day} onChange={e => setContractForm(f => ({ ...f, due_day: Number(e.target.value) }))} />
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Cliente</label>
+                <select style={inp} value={contractForm.client_id} onChange={e => setContractForm(f => ({ ...f, client_id: e.target.value }))}>
+                  <option value="">— Selecionar —</option>
+                  {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Início</label>
+                  <input type="date" style={inp} value={contractForm.start_date} onChange={e => setContractForm(f => ({ ...f, start_date: e.target.value }))} />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Status</label>
+                  <select style={inp} value={contractForm.status} onChange={e => setContractForm(f => ({ ...f, status: e.target.value }))}>
+                    <option value="ativo">Ativo</option>
+                    <option value="pausado">Pausado</option>
+                    <option value="cancelado">Cancelado</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '11px', color: '#4b5563', textTransform: 'uppercase' as const, letterSpacing: '1px', marginBottom: '6px' }}>Observações</label>
+                <input style={inp} value={contractForm.notes} onChange={e => setContractForm(f => ({ ...f, notes: e.target.value }))} placeholder="Informações adicionais..." />
+              </div>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '4px' }}>
+                <button onClick={() => setShowContractForm(false)} style={btn('ghost')}>Cancelar</button>
+                <button onClick={saveContract} style={btn('primary')}>{editingContract ? 'Salvar' : 'Criar'}</button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
