@@ -233,21 +233,12 @@ export default function ContractsPage() {
     <>
       {/* ── Print / PDF styles ────────────────────────────────────────── */}
       <style>{`
-        @media print {
-          body > * { display: none !important; }
-          #contract-print-root { display: block !important; }
-          #contract-print-root * { visibility: visible !important; }
-          @page { size: A4; margin: 20mm 25mm; }
-        }
         #contract-print-root { display: none; }
         @media print {
-          #contract-print-root {
-            display: block !important;
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: white;
-            z-index: 99999;
-          }
+          body * { visibility: hidden !important; }
+          #contract-print-root { display: block !important; position: fixed; top: 0; left: 0; width: 100%; background: white; z-index: 99999; }
+          #contract-print-root, #contract-print-root * { visibility: visible !important; }
+          @page { size: A4; margin: 20mm 25mm; }
         }
       `}</style>
 
